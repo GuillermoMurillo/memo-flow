@@ -6,6 +6,20 @@ Pull the issue with `gh issue view {{ISSUE_NUMBER}} --comments`. If the body ref
 
 **Work only on this single issue.** Do not touch other slices. Do not implement adjacent improvements you notice along the way.
 
+# REFUSE IF THIS IS A PRD
+
+After reading the issue, check whether it's a PRD (a parent planning doc) rather than a slice. Signs it's a PRD:
+
+- Title starts with `PRD:` or `PRD `
+- Body contains `## User Stories`, `## Implementation Decisions`, `## Testing Decisions`, or a similar parent-document structure
+- Body describes a whole feature with no per-slice acceptance criteria
+
+If the issue is a PRD, do NOT implement it. PRDs need to be split into slices by `/to-issues` before an AFK agent works on them. Emit exactly:
+
+<promise>SLICE_BLOCKED: issue #{{ISSUE_NUMBER}} is a PRD, not a slice; route it through /to-issues first</promise>
+
+Do not commit anything. Do not edit the issue.
+
 # BRANCH
 
 Stay on the current branch. Run `git branch --show-current` to confirm. Do not switch branches, do not create a new branch.
