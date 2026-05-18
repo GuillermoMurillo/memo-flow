@@ -66,7 +66,18 @@ Example: `MAX_RETRIES=1 ./scripts/afk-cook <N>` for one-shot mode on a single sl
 - On exhausting retries: `─── slice #<N>: exhausted <N> attempts without completion ───`, script exits 3
 - On unresolvable deps: `afk: cannot proceed — dependency cycle or unsatisfiable deps`, script exits 4
 
+On `SLICE_COMPLETE`, the runner verifies a new commit landed during the attempt (HEAD before vs after). If the agent emitted the sentinel without committing, the attempt is treated as failure and retried. On a confirmed commit, the issue is delabeled and closed on the tracker with a comment referencing the SHA, so subsequent runs (today or next week) see it as satisfied for dependents.
+
 Ctrl-C aborts the current iteration. The script doesn't trap signals beyond default; partially-written commits stay in the working tree.
+
+## Reading an exit-4
+
+`exit 4` means at least one open issue in the queue is blocked by a dependency that is neither closed on the tracker nor completed earlier in this run. The script prints a per-issue blocker report and adds a contextual hint:
+
+- **If another `afk-cook` process is alive on the machine**, the blocker is most likely being shipped by that other invocation. Wait for it to finish, then re-run — don't start a parallel run, and don't start poking at issue state assuming a logic bug. The right pattern is to batch all dependent slices into one invocation so the dep resolver can order them.
+- **If no other `afk-cook` is running**, the blocker is either genuinely unshipped or was shipped previously without being closed on the tracker. Check the issue on GitHub; if shipped, close it manually and re-run.
+
+Concurrent runs in the same repo are unsafe (they race on git HEAD, working tree, and label updates) but `afk-cook` does not enforce this with a lock — the dep-check covers the common case where the parallel run would touch the in-flight blocker's dependents. **Don't run two `afk-cook` invocations against the same repo at the same time**; batch into one.
 
 ## When to use it vs interactive `/tdd`
 

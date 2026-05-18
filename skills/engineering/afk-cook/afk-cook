@@ -129,6 +129,22 @@ while [ -n "$REMAINING" ]; do
       [ -z "$DLIST" ] && DLIST="(none)"
       echo "  #$N blocked by: $DLIST" >&2
     done
+    # If any other afk-cook is alive on this machine, the most likely cause
+    # is that the blocker is currently being shipped by that other invocation
+    # — not that it's genuinely stuck. Surface this so the caller (or an
+    # AI driving afk-cook) doesn't misdiagnose it as a logic bug and start
+    # poking at issue state.
+    OTHER_PIDS=$(pgrep -f "[a]fk-cook" 2>/dev/null | grep -v "^$$\$" || true)
+    if [ -n "$OTHER_PIDS" ]; then
+      echo "" >&2
+      echo "afk: another afk-cook process is running on this machine (pid(s): $(echo $OTHER_PIDS | tr '\n' ' '))." >&2
+      echo "afk: if the blocker is in that invocation, wait for it to finish — don't start a parallel run." >&2
+      echo "afk: batch all dependent slices into a single afk-cook invocation; the dep resolver orders them." >&2
+    else
+      echo "" >&2
+      echo "afk: hint — a blocker open on the tracker is either genuinely unshipped or was shipped without being closed." >&2
+      echo "afk: check the issue on GitHub; if shipped, close it manually and re-run." >&2
+    fi
     exit 4
   fi
 
@@ -174,6 +190,11 @@ for N in "$@"; do
   for ((attempt=1; attempt<=MAX_RETRIES; attempt++)); do
     echo "─── attempt $attempt of $MAX_RETRIES for #$N ───"
 
+    # Capture HEAD before the attempt so we can verify a real commit landed
+    # before closing the issue. SLICE_COMPLETE without a new commit is a
+    # protocol violation by the agent — don't reward it by closing the issue.
+    PRE_SHA=$(git rev-parse HEAD 2>/dev/null || echo "")
+
     # Render the prompt with the issue number substituted.
     RENDERED=$(sed "s/{{ISSUE_NUMBER}}/$N/g" "$PROMPT_FILE")
 
@@ -189,18 +210,24 @@ for N in "$@"; do
     fi
 
     if echo "$RESULT" | grep -q "<promise>SLICE_COMPLETE</promise>"; then
-      echo ""
-      echo "─── slice #$N: SLICE_COMPLETE after attempt $attempt ───"
-      SUCCESS=1
-      # Mark the slice done on the tracker so a subsequent afk-cook run
-      # doesn't pick it up again. Comment with the new commit SHA for traceability.
-      # Best-effort: failures here don't fail the slice.
-      if command -v gh >/dev/null 2>&1; then
-        SHA=$(git rev-parse HEAD 2>/dev/null || echo "")
-        gh issue edit "$N" --remove-label "$LABEL" >/dev/null 2>&1 || true
-        if [ -n "$SHA" ]; then
-          gh issue comment "$N" --body "Shipped by afk-cook in $SHA" >/dev/null 2>&1 || true
+      POST_SHA=$(git rev-parse HEAD 2>/dev/null || echo "")
+      if [ -z "$POST_SHA" ] || [ "$PRE_SHA" = "$POST_SHA" ]; then
+        echo "" >&2
+        echo "─── slice #$N: emitted SLICE_COMPLETE but produced no new commit — treating as failure ───" >&2
+        if [ $attempt -lt $MAX_RETRIES ]; then
+          echo "─── retrying ($attempt → $((attempt + 1))) ───" >&2
         fi
+        continue
+      fi
+      echo ""
+      echo "─── slice #$N: SLICE_COMPLETE after attempt $attempt (commit $POST_SHA) ───"
+      SUCCESS=1
+      # Close the slice on the tracker so subsequent afk-cook runs (today or
+      # next week) see it as satisfied for dependents. Best-effort: failures
+      # here don't fail the slice — the commit already landed.
+      if command -v gh >/dev/null 2>&1; then
+        gh issue edit "$N" --remove-label "$LABEL" >/dev/null 2>&1 || true
+        gh issue close "$N" --comment "Shipped by afk-cook in $POST_SHA" >/dev/null 2>&1 || true
       fi
       break
     fi
