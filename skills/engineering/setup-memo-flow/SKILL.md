@@ -134,3 +134,7 @@ If the `afk-cook` skill is not installed in `.claude/skills/`, tell the user the
 Tell the user the setup is complete and which engineering skills will now read from these files. Mention:
 - They can edit `docs/agents/*.md` directly later. Re-running this skill is only necessary if they want to switch issue trackers or restart from scratch.
 - The AFK runner is at `./scripts/afk-cook`. Run it from the project root. See the `afk-cook` skill (`.claude/skills/afk-cook/SKILL.md`) for usage.
+
+**If the user picked the local-markdown issue tracker in Section A**, add this explicit caveat:
+
+> Note: the AFK runner (`./scripts/afk-cook`) only works with GitHub Issues. It queues work by calling `gh issue list --label ready-for-agent` and does not read the local-markdown `.scratch/` convention. Every interactive skill works fine with local-markdown, but the batch runner will stay idle. To use AFK, push this repo to GitHub and re-run `/setup-memo-flow` so the tracker config switches.

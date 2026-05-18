@@ -20,6 +20,10 @@ Most "AI coding" setups drift because the agent runs in one accumulating session
 
 Skills under `skills/in-progress/` and `skills/deprecated/` are intentionally not listed above and are excluded from `.claude-plugin/plugin.json`. See `docs/adr/0001` and `CONTEXT.md`.
 
+## Limitations
+
+The AFK runner (`./scripts/afk-cook`) requires GitHub Issues. It queues work by calling `gh issue list --label ready-for-agent` and does not read the local-markdown tracker convention. If you pick local-markdown during `/setup-memo-flow`, every interactive skill (`/to-prd`, `/to-issues`, `/tdd`, `/triage`, etc.) works fine, but the batch runner stays idle. To use AFK, push to GitHub and re-run `/setup-memo-flow` so the tracker config switches.
+
 ## Install in a project (Claude Code today)
 
 Two steps: install the skills, then configure them for your repo.
