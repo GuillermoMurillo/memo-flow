@@ -76,7 +76,10 @@ for N in "$@"; do
     RENDERED=$(sed "s/{{ISSUE_NUMBER}}/$N/g" "$PROMPT_FILE")
 
     # Fresh claude invocation. Each one starts with empty context.
-    if claude --permission-mode acceptEdits -p "$RENDERED" 2>&1 | tee /tmp/ralph-slice-${N}-${attempt}.log; then
+    # bypassPermissions because AFK = unattended; the agent has no one to prompt
+    # when it needs `gh`, `git`, or `Bash` access. Labeling work `ready-for-agent`
+    # is the user's "I trust the agent, run unsupervised" signal.
+    if claude --permission-mode bypassPermissions -p "$RENDERED" 2>&1 | tee /tmp/ralph-slice-${N}-${attempt}.log; then
       RESULT=$(cat /tmp/ralph-slice-${N}-${attempt}.log)
     else
       echo "─── claude invocation failed for #$N (attempt $attempt) ───" >&2
