@@ -33,16 +33,110 @@ if [ $# -eq 0 ]; then
     echo "gh CLI not found; pass issue numbers explicitly or install gh" >&2
     exit 1
   fi
-  # Numerically sort so dependency order (foundation first) tends to win.
-  ISSUES=$(gh issue list --label "$LABEL" --state open --json number -q '.[].number' | sort -n)
+  ISSUES=$(gh issue list --label "$LABEL" --state open --json number -q '.[].number')
   if [ -z "$ISSUES" ]; then
     echo "afk: no open issues with label '$LABEL' found." >&2
     exit 0
   fi
   set -- $ISSUES
-  echo "afk: queued $# issue(s): $*"
-  echo ""
 fi
+
+# ──────────────────────────────────────────────────────────────────────
+# Dependency resolution: parse "Blocked by #N" lines from issue bodies
+# and topologically sort the queue so each slice runs only after its
+# prerequisites have been satisfied (either closed on the tracker, or
+# already completed earlier in this run).
+# ──────────────────────────────────────────────────────────────────────
+
+echo "afk: resolving dependencies for $# issue(s): $*"
+
+# DEPS_RAW: one line per queue issue, format "<N>=<dep1> <dep2> ..."
+# STATES:   one line per referenced issue, format "<N>=<STATE>" (OPEN/CLOSED)
+DEPS_RAW=""
+STATES=""
+
+# Pass 1: for each input issue, fetch body+state in one gh call, parse deps.
+for N in "$@"; do
+  INFO=$(gh issue view "$N" --json body,state -q '"\(.state)\n\(.body)"' 2>/dev/null || echo "UNKNOWN")
+  STATE=$(echo "$INFO" | head -1)
+  BODY=$(echo "$INFO" | tail -n +2)
+  DEPS=$(echo "$BODY" | grep -oE "Blocked by #[0-9]+" | grep -oE "[0-9]+" | sort -un | tr '\n' ' ')
+  DEPS_RAW="${DEPS_RAW}${N}=${DEPS}
+"
+  STATES="${STATES}${N}=${STATE}
+"
+done
+
+# Pass 2: for any dep not already in the queue (external dep), fetch its state.
+EXTERNAL=""
+for N in "$@"; do
+  D_LIST=$(echo "$DEPS_RAW" | grep "^$N=" | head -1 | cut -d= -f2)
+  for D in $D_LIST; do
+    # Skip if already in queue or already collected as external
+    case " $* $EXTERNAL " in *" $D "*) continue;; esac
+    EXTERNAL="$EXTERNAL $D"
+  done
+done
+for D in $EXTERNAL; do
+  STATE=$(gh issue view "$D" --json state -q .state 2>/dev/null || echo "UNKNOWN")
+  STATES="${STATES}${D}=${STATE}
+"
+done
+
+# Helpers
+deps_of() { echo "$DEPS_RAW" | grep "^$1=" | head -1 | cut -d= -f2; }
+state_of() { echo "$STATES" | grep "^$1=" | head -1 | cut -d= -f2; }
+
+# Pass 3: topological sort (Kahn's algorithm).
+# An issue is runnable when every dep is satisfied: either CLOSED on the
+# tracker, or already completed in DONE_THIS_RUN.
+ORDERED=""
+DONE_THIS_RUN=""
+REMAINING="$*"
+
+while [ -n "$REMAINING" ]; do
+  NEXT=""
+  STILL_BLOCKED=""
+  for N in $REMAINING; do
+    BLOCKED=0
+    for D in $(deps_of "$N"); do
+      case " $DONE_THIS_RUN " in *" $D "*) continue;; esac
+      if [ "$(state_of "$D")" != "CLOSED" ]; then
+        BLOCKED=1
+        break
+      fi
+    done
+    if [ $BLOCKED -eq 0 ]; then
+      NEXT="$NEXT $N"
+    else
+      STILL_BLOCKED="$STILL_BLOCKED $N"
+    fi
+  done
+
+  if [ -z "$NEXT" ]; then
+    echo "" >&2
+    echo "afk: cannot proceed — dependency cycle or unsatisfiable deps:" >&2
+    for N in $REMAINING; do
+      DLIST=$(deps_of "$N")
+      [ -z "$DLIST" ] && DLIST="(none)"
+      echo "  #$N blocked by: $DLIST" >&2
+    done
+    exit 4
+  fi
+
+  # Within one layer, ship in numerical order for determinism.
+  NEXT=$(echo "$NEXT" | tr ' ' '\n' | grep -v '^$' | sort -n | tr '\n' ' ')
+  for N in $NEXT; do
+    ORDERED="$ORDERED $N"
+    DONE_THIS_RUN="$DONE_THIS_RUN $N"
+  done
+  REMAINING=$(echo "$STILL_BLOCKED" | sed 's/^ *//;s/ *$//')
+done
+
+# Reset positional args to the dep-resolved order.
+set -- $ORDERED
+echo "afk: dependency-ordered queue: $*"
+echo ""
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROMPT_FILE="${PROMPT_FILE:-$SCRIPT_DIR/slice-prompt.md}"

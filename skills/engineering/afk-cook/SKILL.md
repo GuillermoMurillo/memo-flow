@@ -32,6 +32,21 @@ If those files are missing, re-run `/setup-memo-flow` and confirm AFK installati
 ./scripts/afk-cook <N> <M> <O>      # explicit batch
 ```
 
+### Dependency ordering
+
+Before running, `afk-cook` resolves dependencies by reading each issue body for `Blocked by #N` markers (the same format `/to-issues` emits). It then runs the queue in topological order: an issue only starts after every issue it's blocked by is either CLOSED on the tracker or completed earlier in the same run.
+
+Order is announced at startup:
+
+```
+afk: resolving dependencies for 4 issue(s): 9 10 11 12
+afk: dependency-ordered queue: 9 10 11 12
+```
+
+If your queue has a dependency cycle or references an unresolvable issue (open and not in the queue), `afk-cook` exits 4 with a per-issue blocker report and runs nothing.
+
+Within a topological layer (slices with the same depth in the graph), order falls back to numerical for determinism.
+
 ### Environment overrides
 
 | Variable | Default | Effect |
@@ -49,6 +64,7 @@ Example: `MAX_RETRIES=1 ./scripts/afk-cook <N>` for one-shot mode on a single sl
 - On success: `─── slice #<N>: SLICE_COMPLETE after attempt <N> ───`, then next slice
 - On agent-reported blocker: `─── slice #<N>: SLICE_BLOCKED ... ───`, script exits 2
 - On exhausting retries: `─── slice #<N>: exhausted <N> attempts without completion ───`, script exits 3
+- On unresolvable deps: `afk: cannot proceed — dependency cycle or unsatisfiable deps`, script exits 4
 
 Ctrl-C aborts the current iteration. The script doesn't trap signals beyond default; partially-written commits stay in the working tree.
 
