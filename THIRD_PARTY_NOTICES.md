@@ -7,6 +7,7 @@ Modifications:
 - `setup-matt-pocock-skills` skill renamed to `setup-memo-flow` (cosmetic rename; behavior unchanged in v1).
 - Per-file attribution header added to each vendored `SKILL.md`.
 - Subsequent customizations (e.g. AFK scripts, post-slice recommendation step) are original to this repository and not derived from upstream.
+- `diagnose` SKILL.md: added two mandatory checkpoints — end of Phase 1 (state the feedback loop before reproducing) and end of Phase 4 (state root cause + fix type before writing code). Diverges from upstream, where Phase 4→5 flows without a stop. Tracks the intent of upstream proposal mattpocock/skills#124 (open, unanswered).
 
 ---
 

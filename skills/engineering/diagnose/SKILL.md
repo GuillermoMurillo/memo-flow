@@ -52,6 +52,18 @@ Stop and say so explicitly. List what you tried. Ask the user for: (a) access to
 
 Do not proceed to Phase 2 until you have a loop you believe in.
 
+### Mandatory checkpoint before Phase 2
+
+**Do not run the loop yet.** Stop and post the following to the user, verbatim shape:
+
+> **Loop:** option <N> from the list — <one-sentence description of the loop>.
+> **Signal:** <what pass vs. fail looks like>.
+> **Why not a faster option:** <only if you picked option 10 (HITL); otherwise omit>.
+
+Then wait. **Do not proceed to Phase 2 until the user confirms.** If the user is genuinely AFK, you may proceed with options 1–9 only — never with option 10 (HITL) unattended.
+
+This checkpoint exists because the most common diagnose failure mode is skipping Phase 1 entirely and jumping to "ask the user to click around and report what they see." Stating the loop out loud is the cheapest possible course-correction point.
+
 ## Phase 2 — Reproduce
 
 Run the loop. Watch the bug appear.
@@ -89,6 +101,19 @@ Tool preference:
 **Tag every debug log** with a unique prefix, e.g. `[DEBUG-a4f2]`. Cleanup at the end becomes a single grep. Untagged logs survive; tagged logs die.
 
 **Perf branch.** For performance regressions, logs are usually wrong. Instead: establish a baseline measurement (timing harness, `performance.now()`, profiler, query plan), then bisect. Measure first, fix second.
+
+### Mandatory checkpoint before Phase 5
+
+**Do not write any code yet.** Stop and post the following to the user, verbatim shape:
+
+> **Root cause:** <one sentence>.
+> **Hypothesis confirmed:** <which Phase-3 hypothesis, or "none — shifted to X">.
+> **Proposed fix:** <one or two sentences>.
+> **Fix type:** root-cause | defensive. <If defensive: name the real root cause and why we are not fixing it directly.>
+
+Then wait. **Do not proceed to Phase 5 until the user confirms.** Phase 5 writes code; this is the last cheap point to course-correct. Domain knowledge often re-ranks the fix here ("that's a known constraint, fix it the other way") — once code is written, that information arrives too late.
+
+The **fix type** distinction is non-negotiable. A defensive patch (adds error handling around a symptom) is not the same as a root-cause fix (eliminates the cause). Both are legitimate, but conflating them is how bugs get marked "fixed" while the actual cause keeps biting.
 
 ## Phase 5 — Fix + regression test
 
