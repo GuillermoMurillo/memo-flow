@@ -90,6 +90,16 @@ for N in "$@"; do
       echo ""
       echo "─── slice #$N: SLICE_COMPLETE after attempt $attempt ───"
       SUCCESS=1
+      # Mark the slice done on the tracker so a subsequent afk-cook run
+      # doesn't pick it up again. Comment with the new commit SHA for traceability.
+      # Best-effort: failures here don't fail the slice.
+      if command -v gh >/dev/null 2>&1; then
+        SHA=$(git rev-parse HEAD 2>/dev/null || echo "")
+        gh issue edit "$N" --remove-label "$LABEL" >/dev/null 2>&1 || true
+        if [ -n "$SHA" ]; then
+          gh issue comment "$N" --body "Shipped by afk-cook in $SHA" >/dev/null 2>&1 || true
+        fi
+      fi
       break
     fi
 
