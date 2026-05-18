@@ -118,6 +118,28 @@ Then write the three docs files using the seed templates in this skill folder as
 
 For "other" issue trackers, write `docs/agents/issue-tracker.md` from scratch using the user's description.
 
+### 4b. Create canonical labels (GitHub only)
+
+If the user picked **GitHub** in Section A, also create the five canonical triage labels on the remote repo so that `/triage`, `/to-issues`, and `afk-cook` can apply them without "label not found" errors.
+
+Use the **mapped strings** from Section B (which default to the canonical names but may have been overridden). For each role, run:
+
+```bash
+gh label create "<mapped-string>" --repo "<owner>/<repo>" --color CCCCCC --force
+```
+
+The `--force` flag makes the command a no-op if the label already exists, so this is safe to re-run. Suggested order:
+
+- `needs-triage`
+- `needs-info`
+- `ready-for-agent`
+- `ready-for-human`
+- `wontfix`
+
+Tell the user which labels were created (or were already present). If the repo doesn't yet have a GitHub remote, skip this step and remind the user to re-run `/setup-memo-flow` after pushing.
+
+If the user picked **GitLab**, do the equivalent with `glab label create` (the GitLab CLI). For **local-markdown** or **other** trackers, skip this step entirely.
+
 ### 5. Install the AFK runner
 
 After writing the config files, also install the AFK runner into the consumer project. Two files copy from the sibling `afk-cook` skill folder (installed alongside this one) into the consumer's `scripts/` directory:
