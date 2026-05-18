@@ -45,7 +45,7 @@ if [ $# -eq 0 ]; then
 fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROMPT_FILE="${PROMPT_FILE:-$SCRIPT_DIR/prompts/slice-prompt.md}"
+PROMPT_FILE="${PROMPT_FILE:-$SCRIPT_DIR/slice-prompt.md}"
 MAX_RETRIES="${MAX_RETRIES:-2}"
 
 if [ ! -f "$PROMPT_FILE" ]; then

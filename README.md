@@ -58,7 +58,7 @@ It only writes into the consumer project. It does not modify files in this repo.
 
 The workflow is the value, the skills are one packaging. To run with a different agent:
 
-- Take `scripts/prompts/slice-prompt.md` as your per-slice brief template.
+- Take `scripts/slice-prompt.md` as your per-slice brief template.
 - Replace the `claude -p` invocation in `scripts/afk-cook` with your agent's headless invocation (`codex exec`, `aider --message`, etc.).
 - Adapt the slash-command skills (`/to-prd`, `/to-issues`, `/triage`) into whatever brief format your agent expects. The logic in each `SKILL.md` is the spec; the format is yours.
 
