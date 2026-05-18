@@ -83,3 +83,12 @@ Or "None - can start immediately" if no blockers.
 </issue-template>
 
 Do NOT close or modify any parent issue.
+
+### 6. Closing summary
+
+After all issues are published, print a short summary listing the new issue numbers and titles grouped by type (AFK / HITL). Then end with exactly this guidance, with no specific issue numbers:
+
+- AFK slices: run `./scripts/afk-cook` from the project root — it will resolve dependencies and pick up everything labeled `ready-for-agent` in the correct order.
+- HITL slices: open each one and run `/tdd` interactively.
+
+Do NOT suggest running `afk-cook` against a specific issue number. The runner is the source of truth for ordering; naming an issue here implies a decision that the runner re-makes at execution time.
