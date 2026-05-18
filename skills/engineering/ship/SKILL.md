@@ -61,7 +61,9 @@ Do not auto-interpret an empty findings report as "passed" — wait for the user
 
 ### 4. Draft the PR body
 
-Title: take the parent PRD's title verbatim (`gh issue view <PRD> --json title`), strip any leading `PRD:` prefix.
+Title: take the parent PRD's title verbatim (`gh issue view <PRD> --json title`), strip any leading `PRD:` prefix, then match the commit-style convention used on this branch. Inspect `git log main..HEAD --format=%s` — if every commit starts with a conventional-commits prefix (`feat:`, `fix:`, `chore:`, `refactor:`, etc.), apply the dominant prefix to the PR title. If commits use no consistent prefix, leave the title bare. Don't invent a prefix the branch isn't already using.
+
+Do **not** include the PRD number in the title (no `#20` in the title text). GitHub renders the linked issue prominently in the PR sidebar once `Closes #<PRD>` is in the body; duplicating it in the title is noise.
 
 Body template:
 
