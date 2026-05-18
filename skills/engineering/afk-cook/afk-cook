@@ -1,0 +1,118 @@
+#!/usr/bin/env bash
+#
+# afk-cook — bash-loop Ralph for AFK (ready-for-agent) slices.
+#
+# One fresh `claude -p` invocation per GitHub issue. Each invocation starts
+# with an empty context; state lives in the git tree, in CLAUDE.md, and in
+# the GitHub issue body. The prompt template inlines the TDD rules.
+#
+# Each iteration starts with empty context, so the agent reads the spec from
+# the issue body rather than from session memory. This is the whole reason
+# this script is a bash for-loop and not one long-running session.
+#
+# Usage:
+#   ./scripts/afk-cook                  # all open ready-for-agent issues
+#   ./scripts/afk-cook 54 55 56 57      # explicit list
+#   ./scripts/afk-cook 54               # one slice (good for first try)
+#
+# Optional env:
+#   MAX_RETRIES — per-issue retry count if the agent doesn't emit
+#                 SLICE_COMPLETE on the first try (default: 2). Set to 1 to
+#                 force one-shot per slice.
+#   PROMPT_FILE — override the prompt template path.
+#   LABEL       — when called with no args, which label to query for
+#                 (default: ready-for-agent).
+
+set -euo pipefail
+
+LABEL="${LABEL:-ready-for-agent}"
+
+if [ $# -eq 0 ]; then
+  echo "afk: no issues passed — querying gh for label '$LABEL'..."
+  if ! command -v gh >/dev/null 2>&1; then
+    echo "gh CLI not found; pass issue numbers explicitly or install gh" >&2
+    exit 1
+  fi
+  # Numerically sort so dependency order (foundation first) tends to win.
+  ISSUES=$(gh issue list --label "$LABEL" --state open --json number -q '.[].number' | sort -n)
+  if [ -z "$ISSUES" ]; then
+    echo "afk: no open issues with label '$LABEL' found." >&2
+    exit 0
+  fi
+  set -- $ISSUES
+  echo "afk: queued $# issue(s): $*"
+  echo ""
+fi
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROMPT_FILE="${PROMPT_FILE:-$SCRIPT_DIR/prompts/slice-prompt.md}"
+MAX_RETRIES="${MAX_RETRIES:-2}"
+
+if [ ! -f "$PROMPT_FILE" ]; then
+  echo "missing prompt template: $PROMPT_FILE" >&2
+  exit 1
+fi
+
+if ! command -v claude >/dev/null 2>&1; then
+  echo "claude CLI not found in PATH" >&2
+  exit 1
+fi
+
+BRANCH="$(git branch --show-current)"
+echo "ralph: running on branch '$BRANCH'"
+echo "ralph: max retries per issue: $MAX_RETRIES"
+echo ""
+
+for N in "$@"; do
+  echo "═══════════════════════════════════════════════════════════"
+  echo "ralph: slice #$N"
+  echo "═══════════════════════════════════════════════════════════"
+
+  SUCCESS=0
+  for ((attempt=1; attempt<=MAX_RETRIES; attempt++)); do
+    echo "─── attempt $attempt of $MAX_RETRIES for #$N ───"
+
+    # Render the prompt with the issue number substituted.
+    RENDERED=$(sed "s/{{ISSUE_NUMBER}}/$N/g" "$PROMPT_FILE")
+
+    # Fresh claude invocation. Each one starts with empty context.
+    if claude --permission-mode acceptEdits -p "$RENDERED" 2>&1 | tee /tmp/ralph-slice-${N}-${attempt}.log; then
+      RESULT=$(cat /tmp/ralph-slice-${N}-${attempt}.log)
+    else
+      echo "─── claude invocation failed for #$N (attempt $attempt) ───" >&2
+      RESULT=""
+    fi
+
+    if echo "$RESULT" | grep -q "<promise>SLICE_COMPLETE</promise>"; then
+      echo ""
+      echo "─── slice #$N: SLICE_COMPLETE after attempt $attempt ───"
+      SUCCESS=1
+      break
+    fi
+
+    if echo "$RESULT" | grep -q "<promise>SLICE_BLOCKED:"; then
+      REASON=$(echo "$RESULT" | grep "<promise>SLICE_BLOCKED:" | head -1 | sed 's/.*SLICE_BLOCKED: *//;s/<\/promise>.*//')
+      echo ""
+      echo "─── slice #$N: SLICE_BLOCKED — $REASON ───" >&2
+      echo "─── stopping. fix the blocker and re-run. ───" >&2
+      exit 2
+    fi
+
+    if [ $attempt -lt $MAX_RETRIES ]; then
+      echo "─── no sentinel emitted, retrying ($attempt → $((attempt + 1))) ───" >&2
+    fi
+  done
+
+  if [ $SUCCESS -eq 0 ]; then
+    echo "" >&2
+    echo "─── slice #$N: exhausted $MAX_RETRIES attempts without completion ───" >&2
+    echo "─── inspect /tmp/ralph-slice-${N}-*.log to see what happened ───" >&2
+    exit 3
+  fi
+
+  echo ""
+done
+
+echo "═══════════════════════════════════════════════════════════"
+echo "ralph: all slices complete: $*"
+echo "═══════════════════════════════════════════════════════════"

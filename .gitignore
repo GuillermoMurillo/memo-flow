@@ -1,0 +1,14 @@
+.DS_Store
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
+node_modules/
+*.log
+/tmp/
+.env
+.env.local
+
+# Per-session Claude Code state — never commit
+.claude/

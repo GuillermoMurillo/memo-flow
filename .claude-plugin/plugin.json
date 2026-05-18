@@ -1,0 +1,21 @@
+{
+  "name": "memo-flow",
+  "description": "Spec-driven, slice-based, AFK-friendly Claude Code skills.",
+  "skills": [
+    "./skills/engineering/afk-cook",
+    "./skills/engineering/diagnose",
+    "./skills/engineering/grill-with-docs",
+    "./skills/engineering/improve-codebase-architecture",
+    "./skills/engineering/prototype",
+    "./skills/engineering/setup-memo-flow",
+    "./skills/engineering/tdd",
+    "./skills/engineering/to-issues",
+    "./skills/engineering/to-prd",
+    "./skills/engineering/triage",
+    "./skills/engineering/zoom-out",
+    "./skills/productivity/caveman",
+    "./skills/productivity/grill-me",
+    "./skills/productivity/handoff",
+    "./skills/productivity/write-a-skill"
+  ]
+}
