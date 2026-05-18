@@ -3,7 +3,8 @@
 This repository vendors a derivative of [mattpocock/skills](https://github.com/mattpocock/skills) under the terms of the MIT License.
 
 Modifications:
-- Subset of skills selected (engineering + productivity, plus the in-progress `review` skill renamed to `memo-review`).
+- Subset of skills selected (engineering + productivity).
+- The upstream in-progress `review` skill is vendored as `memo-review` (renamed; behavior intact) and promoted to `skills/engineering/` so consumers receive it via `npx skills@latest add`. Heading updated to match the new name. Description extended with extra triggering language for the `/ship` integration. Body content unchanged from upstream at vendor time.
 - `setup-matt-pocock-skills` skill renamed to `setup-memo-flow` (cosmetic rename; behavior unchanged in v1).
 - Per-file attribution header added to each vendored `SKILL.md`.
 - Subsequent customizations (e.g. AFK scripts, post-slice recommendation step) are original to this repository and not derived from upstream.

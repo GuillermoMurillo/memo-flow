@@ -6,8 +6,10 @@ Promoted engineering skills. Listed in root `README.md` and `.claude-plugin/plug
 - [diagnose](diagnose/SKILL.md): investigate a bug or unexpected behavior; build a hypothesis tree, narrow with cheap probes.
 - [grill-with-docs](grill-with-docs/SKILL.md): interrogate a design or implementation against authoritative docs to surface gaps.
 - [improve-codebase-architecture](improve-codebase-architecture/SKILL.md): propose architectural refactors using deep-module heuristics.
+- [memo-review](memo-review/SKILL.md): two-axis (Standards + Spec) review of a branch via parallel sub-agents. Invoked directly or as the review gate inside `/ship`.
 - [prototype](prototype/SKILL.md): spike-quality build to validate a direction before committing to TDD.
 - [setup-memo-flow](setup-memo-flow/SKILL.md): scaffold issue tracker, triage labels, and domain docs into a consumer project.
+- [ship](ship/SKILL.md): close the loop from finished feature branch to PR open with `Closes #<PRD>`. Runs `/memo-review` as a gate, walks slice → parent PRD, drafts the body, opens the PR.
 - [tdd](tdd/SKILL.md): strict red, green, refactor on a single slice; integration tests over mocks.
 - [to-issues](to-issues/SKILL.md): break a PRD into vertical slices and publish as issues.
 - [to-prd](to-prd/SKILL.md): turn an idea-stage conversation into a PRD.
