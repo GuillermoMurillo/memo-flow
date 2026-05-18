@@ -16,7 +16,7 @@ Most "AI coding" setups drift because the agent runs in one accumulating session
 ## What's in this repo
 
 - **Skills** (Claude Code today): `afk-cook`, `tdd`, `triage`, `to-prd`, `to-issues`, `diagnose`, `grill-with-docs`, `improve-codebase-architecture`, `prototype`, `zoom-out`, `setup-memo-flow`, `caveman`, `grill-me`, `handoff`, `write-a-skill`. See [skills/engineering/README.md](skills/engineering/README.md) and [skills/productivity/README.md](skills/productivity/README.md).
-- **AFK runner** (ships as part of the `afk-cook` skill): a bash loop that queues `ready-for-agent` GitHub issues and runs one fresh `claude -p` invocation per slice. Each iteration starts empty; state lives in git, in the issue body, and in `CLAUDE.md`. Installed into your project by `/setup-memo-flow` as `scripts/afk-cook` + `scripts/slice-prompt.md`.
+- **AFK runner** (ships as part of the `afk-cook` skill): a bash loop that queues `ready-for-agent` GitHub issues and runs one fresh `claude -p` invocation per slice. Each iteration starts empty; state lives in git, in the issue body, and in `CLAUDE.md`. `/setup-memo-flow` installs a 2-line wrapper at `scripts/afk-cook` that delegates to the real script in `.claude/skills/afk-cook/`. Updates flow through `npx skills@latest update` automatically.
 
 Skills under `skills/in-progress/` and `skills/deprecated/` are intentionally not listed above and are excluded from `.claude-plugin/plugin.json`. See `docs/adr/0001` and `CONTEXT.md`.
 
@@ -53,6 +53,15 @@ claude  # start a Claude Code session
 `/setup-memo-flow` is a prompt-driven skill that asks three questions (issue tracker, triage label vocabulary, domain doc layout) and writes `docs/agents/{issue-tracker,triage-labels,domain}.md` plus an `## Agent skills` block in your `AGENTS.md` or `CLAUDE.md`.
 
 It only writes into the consumer project. It does not modify files in this repo.
+
+### Updating
+
+```bash
+cd ~/Projects/my-project
+npx skills@latest update
+```
+
+This refreshes every installed skill to the latest from GitHub. Because `scripts/afk-cook` is a thin wrapper that delegates to `.claude/skills/afk-cook/afk-cook`, updates to the real script and prompt template propagate automatically. No re-copy step.
 
 ## Using with other agents
 

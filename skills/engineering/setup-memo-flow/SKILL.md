@@ -140,22 +140,30 @@ Tell the user which labels were created (or were already present). If the repo d
 
 If the user picked **GitLab**, do the equivalent with `glab label create` (the GitLab CLI). For **local-markdown** or **other** trackers, skip this step entirely.
 
-### 5. Install the AFK runner
+### 5. Install the AFK runner wrapper
 
-After writing the config files, also install the AFK runner into the consumer project. Two files copy from the sibling `afk-cook` skill folder (installed alongside this one) into the consumer's `scripts/` directory:
+After writing the config files, install a thin wrapper at `<project-root>/scripts/afk-cook` that delegates to the installed `afk-cook` skill. The wrapper is a stable, 2-line interface; the real script and prompt template stay in `.claude/skills/afk-cook/` and update automatically when the user runs `npx skills@latest update`.
 
-- Source: `.claude/skills/afk-cook/afk-cook` → Destination: `<project-root>/scripts/afk-cook` (chmod +x)
-- Source: `.claude/skills/afk-cook/slice-prompt.md` → Destination: `<project-root>/scripts/slice-prompt.md`
+Create `<project-root>/scripts/` if it doesn't exist. Write `<project-root>/scripts/afk-cook` with exactly these contents:
 
-If `<project-root>/scripts/` already contains `afk-cook` or `slice-prompt.md`, ask the user whether to overwrite. Default to skipping.
+```bash
+#!/usr/bin/env bash
+exec "$(dirname "$0")/../.claude/skills/afk-cook/afk-cook" "$@"
+```
 
-If the `afk-cook` skill is not installed in `.claude/skills/`, tell the user the AFK runner cannot be installed and they need to re-run `npx skills@latest add GuillermoMurillo/memo-flow` with `afk-cook` selected.
+Make it executable: `chmod +x <project-root>/scripts/afk-cook`.
+
+Do NOT copy `slice-prompt.md` into `scripts/`. The real `afk-cook` script in `.claude/skills/afk-cook/` already reads its prompt template from its own sibling location, so the wrapper inherits the latest template automatically.
+
+If `<project-root>/scripts/afk-cook` already exists and is NOT this exact wrapper (e.g. an older copy from a previous install), ask the user whether to replace it. Default to replacing, since the wrapper is the auto-update path.
+
+If the `afk-cook` skill is not installed in `.claude/skills/`, tell the user the AFK runner cannot be installed and they need to re-run `npx skills@latest add GuillermoMurillo/memo-flow -a claude-code` with `afk-cook` selected.
 
 ### 6. Done
 
 Tell the user the setup is complete and which engineering skills will now read from these files. Mention:
 - They can edit `docs/agents/*.md` directly later. Re-running this skill is only necessary if they want to switch issue trackers or restart from scratch.
-- The AFK runner is at `./scripts/afk-cook`. Run it from the project root. See the `afk-cook` skill (`.claude/skills/afk-cook/SKILL.md`) for usage.
+- The AFK runner is at `./scripts/afk-cook`. Run it from the project root. The file is a thin wrapper; the real script lives in `.claude/skills/afk-cook/` and updates with `npx skills@latest update`. See the `afk-cook` skill (`.claude/skills/afk-cook/SKILL.md`) for usage.
 
 **If the user picked the local-markdown issue tracker in Section A**, add this explicit caveat:
 
