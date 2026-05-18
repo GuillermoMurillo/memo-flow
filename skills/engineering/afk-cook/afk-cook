@@ -60,7 +60,15 @@ for N in "$@"; do
   INFO=$(gh issue view "$N" --json body,state -q '"\(.state)\n\(.body)"' 2>/dev/null || echo "UNKNOWN")
   STATE=$(echo "$INFO" | head -1)
   BODY=$(echo "$INFO" | tail -n +2)
-  DEPS=$(echo "$BODY" | grep -oE "Blocked by #[0-9]+" | grep -oE "[0-9]+" | sort -un | tr '\n' ' ')
+  # Extract the "## Blocked by" section, then pull any #N references out of it.
+  # Matches both `#9` (informal) and `owner/repo#9` (the format /to-issues writes).
+  # `|| true` swallows the non-zero grep exit when a section has "None" or no refs.
+  DEPS=$(echo "$BODY" \
+    | awk '/^## Blocked by/{flag=1; next} /^##/{flag=0} flag' \
+    | grep -oE "#[0-9]+" \
+    | grep -oE "[0-9]+" \
+    | sort -un \
+    | tr '\n' ' ' || true)
   DEPS_RAW="${DEPS_RAW}${N}=${DEPS}
 "
   STATES="${STATES}${N}=${STATE}
