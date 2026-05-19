@@ -4,8 +4,6 @@ description: Sets up an `## Agent skills` block in AGENTS.md/CLAUDE.md and `docs
 disable-model-invocation: true
 ---
 
-<!-- Vendored from mattpocock/skills (MIT). See THIRD_PARTY_NOTICES.md. -->
-
 # Setup memo-flow
 
 Scaffold the per-repo configuration that the engineering skills assume:
