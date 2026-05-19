@@ -7,8 +7,6 @@ description: >
   "less tokens", "be brief", or invokes /caveman.
 ---
 
-<!-- Vendored from mattpocock/skills (MIT). See THIRD_PARTY_NOTICES.md. -->
-
 Respond terse like smart caveman. All technical substance stay. Only fluff die.
 
 ## Persistence
