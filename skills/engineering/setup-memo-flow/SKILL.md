@@ -151,7 +151,42 @@ Tell the user which labels were created (or were already present). If the repo d
 
 If the user picked **GitLab**, do the equivalent with `glab label create` (the GitLab CLI). For **local-markdown** or **other** trackers, skip this step entirely.
 
-### 5. Install the AFK runner wrapper
+### 5. Write manifest and user registry
+
+After writing the config files, record the install in the two state files.
+
+**Detect existing install first.** Read `.claude/memo-flow-installed.json` if it exists and look for `<!-- BEGIN memo-flow:agent-skills -->` already in the target file. If both the manifest entry for `memo-flow:agent-skills` is present AND the fence is already in the file with matching content, the install is up-to-date: tell the user "already configured, nothing to do" and stop. Do not re-write anything.
+
+**On first run (no manifest or missing entry):**
+
+Use `scripts/manifest.sh` from the project root to write the manifest:
+
+```bash
+# Create or update manifest at .claude/memo-flow-installed.json
+scripts/manifest.sh init .claude/memo-flow-installed.json "<bundle-version>"
+scripts/manifest.sh append .claude/memo-flow-installed.json \
+  '{"id":"memo-flow:agent-skills","kind":"doc_block","target":"<AGENTS.md or CLAUDE.md>","section":"agent-skills","customized":false}'
+```
+
+Then register the project in the user-level registry using `scripts/user-registry.sh`:
+
+```bash
+# Register in ~/.claude/memo-flow-installed.json
+scripts/user-registry.sh insert ~/.claude/memo-flow-installed.json \
+  "<absolute-path-to-project-root>" '["base"]'
+```
+
+The `<bundle-version>` comes from the `name` field in `.claude-plugin/plugin.json` if available, otherwise use `"unknown"`. The `<absolute-path-to-project-root>` is the output of `pwd` at the project root.
+
+**On re-run (manifest entry already present, fence already in file, content unchanged):**
+
+No-op. Tell the user "already configured, nothing to do." Do not call `manifest.sh` or `user-registry.sh` again.
+
+**On re-run with changed content** (fence present but inner content differs — user edited it or config changed):
+
+Re-render the `## Agent skills` block via the fence insert (step 4), but leave the manifest and registry entries as-is. The mutation record is still valid; only the rendered content changed.
+
+### 6. Install the AFK runner wrapper
 
 After writing the config files, install a thin wrapper at `<project-root>/scripts/afk-cook` that delegates to the installed `afk-cook` skill. The wrapper is a stable, 2-line interface; the real script and prompt template stay in `.claude/skills/afk-cook/` and update automatically when the user runs `npx skills@latest update`.
 
