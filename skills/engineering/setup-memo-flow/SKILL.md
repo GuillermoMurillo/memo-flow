@@ -88,11 +88,12 @@ Let them edit before writing.
 
 Never create `AGENTS.md` when `CLAUDE.md` already exists (or vice versa) — always edit the one that's already there.
 
-If an `## Agent skills` block already exists in the chosen file, update its contents in-place rather than appending a duplicate. Don't overwrite user edits to the surrounding sections.
+**Re-run detection uses fence markers, not heading match.** When deciding whether a previous run already wrote the `## Agent skills` block, look for `<!-- BEGIN memo-flow:agent-skills -->` in the file, not for the heading itself. Heading match only applies if the fence is absent (pre-fence legacy install — treat as first run for fence purposes).
 
-The block:
+**Fence wrapping.** Always wrap the generated `## Agent skills` block in memo-flow marker fences:
 
 ```markdown
+<!-- BEGIN memo-flow:agent-skills -->
 ## Agent skills
 
 ### Issue tracker
@@ -106,7 +107,17 @@ The block:
 ### Domain docs
 
 [one-line summary of layout — "single-context" or "multi-context"]. See `docs/agents/domain.md`.
+<!-- END memo-flow:agent-skills -->
 ```
+
+**Re-run behaviour:**
+
+- **Fence absent** (first run or pre-fence legacy install): write the block with fence markers. For legacy installs where an unfenced `## Agent skills` heading already exists, replace it in-place with the fenced version.
+- **Fence present, content unchanged** (generated content matches what's already inside the fence): no-op. Tell the user "already configured, nothing to do."
+- **Fence present, inner content changed** (user edited inside the fence): regenerate — replace the fence's inner content with the freshly generated block. User text *outside* the fence is untouched.
+- **Corruption** (only `<!-- BEGIN memo-flow:agent-skills -->` is present with no matching END): leave the file alone, warn the user, and stop. Do not write anything.
+
+**Multiple sections** in one file are independent. This skill only manages the `agent-skills` section; other fenced sections are left alone.
 
 Then write the three docs files using the seed templates in this skill folder as a starting point:
 
