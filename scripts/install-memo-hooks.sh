@@ -210,6 +210,11 @@ config_json="$scripts_dir/config.json"
 if [ ! -f "$config_json" ]; then
   cat > "$config_json" <<'EOF'
 {
+  "context-monitor": {
+    "enabled": true,
+    "threshold": 99000,
+    "mode": "auto"
+  },
   "skill-leaderboard": {
     "enabled": true,
     "output_file": "~/.claude/memo-flow/skill-usage.json"
@@ -242,6 +247,12 @@ leaderboard_hook="{\"id\":\"memo-flow:skill-leaderboard\",\"command\":\"${leader
 
 "$SETTINGS_SH" insert "$SETTINGS_JSON" "PostToolUse" "" "$leaderboard_hook"
 
+# context-monitor fires on UserPromptSubmit
+monitor_cmd="scripts/memo-flow/context-monitor.sh"
+monitor_hook="{\"id\":\"memo-flow:context-monitor\",\"command\":\"${monitor_cmd}\",\"type\":\"stdin\"}"
+
+"$SETTINGS_SH" insert "$SETTINGS_JSON" "UserPromptSubmit" "" "$monitor_hook"
+
 settings_rel=".claude/settings.json"
 if [ "$SCOPE" = "user" ]; then
   settings_rel="~/.claude/settings.json"
@@ -249,6 +260,9 @@ fi
 
 manifest_append_if_absent "$MANIFEST" \
   "{\"id\":\"memo-flow:settings-skill-leaderboard\",\"kind\":\"settings_entry\",\"target\":\"${settings_rel}\",\"hook_id\":\"memo-flow:skill-leaderboard\",\"scope\":\"${SCOPE}\",\"customized\":false}"
+
+manifest_append_if_absent "$MANIFEST" \
+  "{\"id\":\"memo-flow:settings-skill-context-monitor\",\"kind\":\"settings_entry\",\"target\":\"${settings_rel}\",\"hook_id\":\"memo-flow:context-monitor\",\"scope\":\"${SCOPE}\",\"customized\":false}"
 
 # ── update registry ───────────────────────────────────────────────────────────
 

@@ -29,7 +29,7 @@ _DEFAULTS='{
   "context-monitor": {
     "enabled": true,
     "threshold": 99000,
-    "mode": "remind-once"
+    "mode": "auto"
   },
   "skill-leaderboard": {
     "enabled": true,

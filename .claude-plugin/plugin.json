@@ -6,6 +6,7 @@
     "./skills/engineering/diagnose",
     "./skills/engineering/install-memo-hooks",
     "./skills/engineering/uninstall-memo-hooks",
+    "./skills/engineering/write-a-hook",
     "./skills/engineering/grill-with-docs",
     "./skills/engineering/improve-codebase-architecture",
     "./skills/engineering/memo-flow-doctor",

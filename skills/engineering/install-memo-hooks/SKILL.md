@@ -46,6 +46,8 @@ scripts/install-memo-hooks.sh --scope project
 
 ### 4. What gets installed
 
+**`context-monitor.sh`** (UserPromptSubmit hook): watches transcript token count and warns (or blocks) when approaching the context limit. Three modes: `remind-once` (single stderr line), `remind-until` (stderr every turn), `auto` (writes handoff file + blocks the prompt). Default threshold: 99000 tokens. Disabled via `config.json` toggle. Fail-open if config is missing.
+
 **`skill-leaderboard.sh`** (PostToolUse hook): increments a counter in `~/.claude/memo-flow/skill-usage.json` keyed by skill name every time the Skill tool fires. Disabled via `config.json` toggle. Fail-open if config is missing.
 
 ### 5. Done
