@@ -3,11 +3,14 @@
 #
 # Usage:
 #   memo-flow-doctor.sh [--fix] [--project-dir <dir>] [--bundle-dir <dir>]
+#   memo-flow-doctor.sh --survey [--registry <file>] [--bundle-dir <dir>]
 #
 # Flags:
 #   --project-dir <dir>   project root (default: cwd)
 #   --bundle-dir <dir>    bundle source directory (default: auto-detect)
 #   --fix                 non-interactively restore all non-customized drifted/missing files
+#   --survey              roll-up check across all projects in the user registry
+#   --registry <file>     user registry file (default: ~/.claude/memo-flow-installed.json)
 #
 # Reports per-mutation status:
 #   up-to-date      disk matches both manifest and bundle checksums
@@ -32,15 +35,105 @@ DRIFT_SH="$SCRIPT_DIR/drift-detector.sh"
 PROJECT_DIR="$(pwd)"
 BUNDLE_DIR=""
 FIX=false
+SURVEY=false
+REGISTRY_FILE="$HOME/.claude/memo-flow-installed.json"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --project-dir) PROJECT_DIR="$2"; shift 2 ;;
     --bundle-dir)  BUNDLE_DIR="$2";  shift 2 ;;
     --fix)         FIX=true;         shift ;;
+    --survey)      SURVEY=true;      shift ;;
+    --registry)    REGISTRY_FILE="$2"; shift 2 ;;
     *) echo "memo-flow-doctor: unknown flag: $1" >&2; exit 1 ;;
   esac
 done
+
+# ── survey mode ──────────────────────────────────────────────────────────────
+
+if [ "$SURVEY" = true ]; then
+  if [ ! -f "$REGISTRY_FILE" ]; then
+    echo "memo-flow-doctor: no user registry found at $REGISTRY_FILE" >&2
+    exit 1
+  fi
+
+  # resolve bundle dir for survey (same auto-detect logic as single-project)
+  if [ -z "$BUNDLE_DIR" ]; then
+    if [ -d "$HOME/.claude/skills/memo-flow" ]; then
+      BUNDLE_DIR="$HOME/.claude/skills/memo-flow"
+    else
+      echo "memo-flow-doctor: bundle directory not found — pass --bundle-dir <dir>" >&2
+      exit 1
+    fi
+  fi
+
+  projects=$(python3 -c "
+import json, sys
+data = json.load(open('$REGISTRY_FILE'))
+for p in data.get('projects', []):
+    print(p['path'])
+")
+
+  if [ -z "$projects" ]; then
+    echo "memo-flow-doctor: no projects registered in $REGISTRY_FILE"
+    exit 0
+  fi
+
+  echo "memo-flow-doctor: survey across registered projects"
+  echo ""
+  printf "  %-50s  %s\n" "project" "status"
+  printf "  %-50s  %s\n" "-------" "------"
+
+  TMPDIR_SURVEY=$(mktemp -d)
+  trap 'rm -rf "$TMPDIR_SURVEY"' EXIT
+
+  while IFS= read -r proj_path; do
+    if [ ! -d "$proj_path" ]; then
+      printf "  %-50s  %s\n" "$proj_path" "(dead registry entry — skipped)"
+      echo "  warning: dead registry entry: $proj_path" >&2
+      continue
+    fi
+
+    proj_manifest="$proj_path/.claude/memo-flow-installed.json"
+    if [ ! -f "$proj_manifest" ]; then
+      printf "  %-50s  %s\n" "$proj_path" "no manifest"
+      continue
+    fi
+
+    inv_file="$TMPDIR_SURVEY/inventory.json"
+    "$BUNDLE_INV_SH" scan "$BUNDLE_DIR" > "$inv_file"
+    findings=$("$DRIFT_SH" check "$proj_manifest" "$inv_file" "$proj_path" 2>/dev/null || echo "[]")
+
+    status=$(python3 -c "
+import json, sys
+items = json.loads(sys.argv[1])
+if not items:
+    print('clean')
+    sys.exit(0)
+statuses = [i['status'] for i in items]
+bad = [s for s in statuses if s not in ('up-to-date', 'customized')]
+if not bad:
+    print('clean')
+elif 'missing' in bad:
+    missing_count = sum(1 for s in bad if s == 'missing')
+    drift_count = sum(1 for s in bad if 'drift' in s)
+    parts = []
+    if missing_count:
+        parts.append(str(missing_count) + ' missing')
+    if drift_count:
+        parts.append(str(drift_count) + ' drift')
+    print(', '.join(parts))
+else:
+    drift_count = len(bad)
+    print(str(drift_count) + ' drift')
+" "$findings")
+
+    printf "  %-50s  %s\n" "$proj_path" "$status"
+  done <<< "$projects"
+
+  echo ""
+  exit 0
+fi
 
 MANIFEST="$PROJECT_DIR/.claude/memo-flow-installed.json"
 

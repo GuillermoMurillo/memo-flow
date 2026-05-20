@@ -270,6 +270,77 @@ assert_output_contains "--fix output mentions fixed item" "fixed" "$OUTPUT"
 
 rm -rf "$TMP"
 
+# ── test 11: --survey dead registry entry → warned and skipped ───────────────
+
+echo "--- test: --survey warns on dead registry entry ---"
+TMP=$(mktemp -d)
+BUNDLE="$TMP/bundle"
+REGISTRY="$TMP/registry.json"
+USER_REG_SH="$SCRIPT_DIR/user-registry.sh"
+
+scaffold_clean_install "$TMP/project-a" "$BUNDLE"
+
+# register one live project and one dead path
+"$USER_REG_SH" insert "$REGISTRY" "$TMP/project-a" '["base"]'
+"$USER_REG_SH" insert "$REGISTRY" "/nonexistent/dead/path" '["base"]'
+
+OUTPUT=$("$MODULE" --survey --registry "$REGISTRY" --bundle-dir "$BUNDLE" 2>&1 || true)
+assert_output_contains "--survey warns on dead entry" "dead" "$OUTPUT"
+assert_output_not_contains "--survey does not crash on dead entry" "error" "$OUTPUT"
+
+rm -rf "$TMP"
+
+# ── test 12: --survey produces roll-up table (one row per live project) ───────
+
+echo "--- test: --survey roll-up table has one row per project ---"
+TMP=$(mktemp -d)
+BUNDLE="$TMP/bundle"
+REGISTRY="$TMP/registry.json"
+
+scaffold_clean_install "$TMP/project-a" "$BUNDLE"
+scaffold_clean_install "$TMP/project-b" "$BUNDLE"
+
+"$USER_REG_SH" insert "$REGISTRY" "$TMP/project-a" '["base"]'
+"$USER_REG_SH" insert "$REGISTRY" "$TMP/project-b" '["base"]'
+
+OUTPUT=$("$MODULE" --survey --registry "$REGISTRY" --bundle-dir "$BUNDLE" 2>&1)
+assert_output_contains "--survey table contains project-a" "project-a" "$OUTPUT"
+assert_output_contains "--survey table contains project-b" "project-b" "$OUTPUT"
+
+rm -rf "$TMP"
+
+# ── test 13: --survey clean project → status "clean" in table ────────────────
+
+echo "--- test: --survey reports clean status ---"
+TMP=$(mktemp -d)
+BUNDLE="$TMP/bundle"
+REGISTRY="$TMP/registry.json"
+
+scaffold_clean_install "$TMP/project-clean" "$BUNDLE"
+"$USER_REG_SH" insert "$REGISTRY" "$TMP/project-clean" '["base"]'
+
+OUTPUT=$("$MODULE" --survey --registry "$REGISTRY" --bundle-dir "$BUNDLE" 2>&1)
+assert_output_contains "--survey shows clean for up-to-date project" "clean" "$OUTPUT"
+
+rm -rf "$TMP"
+
+# ── test 14: --survey drifted project → status contains drift count ───────────
+
+echo "--- test: --survey reports drift status ---"
+TMP=$(mktemp -d)
+BUNDLE="$TMP/bundle"
+REGISTRY="$TMP/registry.json"
+
+scaffold_clean_install "$TMP/project-drift" "$BUNDLE"
+# introduce drift
+echo "user-modified" >> "$TMP/project-drift/scripts/memo-flow/foo.sh"
+"$USER_REG_SH" insert "$REGISTRY" "$TMP/project-drift" '["base"]'
+
+OUTPUT=$("$MODULE" --survey --registry "$REGISTRY" --bundle-dir "$BUNDLE" 2>&1)
+assert_output_contains "--survey shows drift for modified project" "drift" "$OUTPUT"
+
+rm -rf "$TMP"
+
 # ── summary ───────────────────────────────────────────────────────────────────
 
 echo ""
