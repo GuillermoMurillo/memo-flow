@@ -640,6 +640,344 @@ echo "--- test: end-to-end install + uninstall restores clean state ---"
   rm -rf "$tmp"
 }
 
+# ── re-run drift detection tests ──────────────────────────────────────────────
+
+# Helper: simulate a bundle bump by writing a modified hook to a temp bundle dir
+# and returning the temp bundle dir path.
+make_bumped_bundle() {
+  local orig_bundle_dir="$1"
+  local tmp_bundle="$2"
+  mkdir -p "$tmp_bundle/hooks"
+  for f in "$orig_bundle_dir/hooks"/*.sh; do
+    [ -f "$f" ] || continue
+    fname="$(basename "$f")"
+    cp "$f" "$tmp_bundle/hooks/$fname"
+    # append a comment to bump the checksum
+    echo "# bundle-bump" >> "$tmp_bundle/hooks/$fname"
+  done
+}
+
+echo "--- test: re-run with no drift reports all hooks up to date ---"
+{
+  tmp=$(mktemp -d)
+  trap "rm -rf '$tmp'" EXIT
+
+  scaffold_base_install "$tmp"
+
+  "$INSTALL_SH" \
+    --project-dir "$tmp" \
+    --registry "$tmp/registry.json" \
+    --scope project \
+    --bundle-dir "$BUNDLE_DIR" \
+    --non-interactive
+
+  output=$("$INSTALL_SH" \
+    --project-dir "$tmp" \
+    --registry "$tmp/registry.json" \
+    --scope project \
+    --bundle-dir "$BUNDLE_DIR" \
+    --non-interactive 2>&1)
+
+  if echo "$output" | grep -qF "all hooks up to date"; then
+    ok "re-run with no drift reports all hooks up to date"
+  else
+    fail "re-run with no drift reports all hooks up to date" "got: $output"
+  fi
+
+  trap - EXIT
+  rm -rf "$tmp"
+}
+
+echo "--- test: re-run with bundle bump (non-interactive) reports pending updates ---"
+{
+  tmp=$(mktemp -d)
+  trap "rm -rf '$tmp'" EXIT
+
+  scaffold_base_install "$tmp"
+
+  "$INSTALL_SH" \
+    --project-dir "$tmp" \
+    --registry "$tmp/registry.json" \
+    --scope project \
+    --bundle-dir "$BUNDLE_DIR" \
+    --non-interactive
+
+  # build a bumped bundle
+  bumped="$tmp/bumped-bundle"
+  make_bumped_bundle "$BUNDLE_DIR" "$bumped"
+
+  output=$("$INSTALL_SH" \
+    --project-dir "$tmp" \
+    --registry "$tmp/registry.json" \
+    --scope project \
+    --bundle-dir "$bumped" \
+    --non-interactive 2>&1)
+
+  if echo "$output" | grep -qF "updates pending"; then
+    ok "bundle bump non-interactive: reports pending updates"
+  else
+    fail "bundle bump non-interactive: reports pending updates" "got: $output"
+  fi
+
+  # disk file should NOT have been overwritten
+  if ! grep -qF "bundle-bump" "$tmp/scripts/memo-flow/skill-leaderboard.sh" 2>/dev/null; then
+    ok "bundle bump non-interactive: disk file not modified"
+  else
+    fail "bundle bump non-interactive: disk file not modified" "file was rewritten without prompt"
+  fi
+
+  trap - EXIT
+  rm -rf "$tmp"
+}
+
+echo "--- test: re-run bundle bump interactive: update rewrites file and updates manifest checksum ---"
+{
+  tmp=$(mktemp -d)
+  trap "rm -rf '$tmp'" EXIT
+
+  scaffold_base_install "$tmp"
+
+  "$INSTALL_SH" \
+    --project-dir "$tmp" \
+    --registry "$tmp/registry.json" \
+    --scope project \
+    --bundle-dir "$BUNDLE_DIR" \
+    --non-interactive
+
+  bumped="$tmp/bumped-bundle"
+  make_bumped_bundle "$BUNDLE_DIR" "$bumped"
+
+  old_checksum=$(python3 -c "
+import json
+data = json.load(open('$tmp/.claude/memo-flow-installed.json'))
+for m in data.get('mutations', []):
+    if m.get('kind') == 'hook_script' and 'skill-leaderboard' in m.get('id',''):
+        print(m.get('source_checksum',''))
+        break
+")
+
+  # simulate user typing 'u' (update) for each prompt (2 hooks bumped)
+  printf "u\nu\n" | "$INSTALL_SH" \
+    --project-dir "$tmp" \
+    --registry "$tmp/registry.json" \
+    --scope project \
+    --bundle-dir "$bumped"
+
+  # disk file should now have the bumped content
+  if grep -qF "bundle-bump" "$tmp/scripts/memo-flow/skill-leaderboard.sh" 2>/dev/null; then
+    ok "update: disk file rewritten with bundle version"
+  else
+    fail "update: disk file rewritten with bundle version" "bundle-bump line not found"
+  fi
+
+  # manifest checksum should be updated
+  new_checksum=$(python3 -c "
+import json
+data = json.load(open('$tmp/.claude/memo-flow-installed.json'))
+for m in data.get('mutations', []):
+    if m.get('kind') == 'hook_script' and 'skill-leaderboard' in m.get('id',''):
+        print(m.get('source_checksum',''))
+        break
+")
+  if [ "$old_checksum" != "$new_checksum" ]; then
+    ok "update: manifest checksum updated"
+  else
+    fail "update: manifest checksum updated" "checksum unchanged: $old_checksum"
+  fi
+
+  trap - EXIT
+  rm -rf "$tmp"
+}
+
+echo "--- test: re-run bundle bump interactive: skip leaves file and manifest unchanged ---"
+{
+  tmp=$(mktemp -d)
+  trap "rm -rf '$tmp'" EXIT
+
+  scaffold_base_install "$tmp"
+
+  "$INSTALL_SH" \
+    --project-dir "$tmp" \
+    --registry "$tmp/registry.json" \
+    --scope project \
+    --bundle-dir "$BUNDLE_DIR" \
+    --non-interactive
+
+  bumped="$tmp/bumped-bundle"
+  make_bumped_bundle "$BUNDLE_DIR" "$bumped"
+
+  old_checksum=$(python3 -c "
+import json
+data = json.load(open('$tmp/.claude/memo-flow-installed.json'))
+for m in data.get('mutations', []):
+    if m.get('kind') == 'hook_script' and 'skill-leaderboard' in m.get('id',''):
+        print(m.get('source_checksum',''))
+        break
+")
+
+  # simulate user typing 's' (skip) for each prompt (2 hooks bumped)
+  printf "s\ns\n" | "$INSTALL_SH" \
+    --project-dir "$tmp" \
+    --registry "$tmp/registry.json" \
+    --scope project \
+    --bundle-dir "$bumped"
+
+  if ! grep -qF "bundle-bump" "$tmp/scripts/memo-flow/skill-leaderboard.sh" 2>/dev/null; then
+    ok "skip: disk file not modified"
+  else
+    fail "skip: disk file not modified" "file was rewritten"
+  fi
+
+  new_checksum=$(python3 -c "
+import json
+data = json.load(open('$tmp/.claude/memo-flow-installed.json'))
+for m in data.get('mutations', []):
+    if m.get('kind') == 'hook_script' and 'skill-leaderboard' in m.get('id',''):
+        print(m.get('source_checksum',''))
+        break
+")
+  if [ "$old_checksum" = "$new_checksum" ]; then
+    ok "skip: manifest checksum unchanged"
+  else
+    fail "skip: manifest checksum unchanged" "checksum changed: $new_checksum"
+  fi
+
+  trap - EXIT
+  rm -rf "$tmp"
+}
+
+echo "--- test: re-run bundle bump interactive: mark-customized sets customized:true ---"
+{
+  tmp=$(mktemp -d)
+  trap "rm -rf '$tmp'" EXIT
+
+  scaffold_base_install "$tmp"
+
+  "$INSTALL_SH" \
+    --project-dir "$tmp" \
+    --registry "$tmp/registry.json" \
+    --scope project \
+    --bundle-dir "$BUNDLE_DIR" \
+    --non-interactive
+
+  bumped="$tmp/bumped-bundle"
+  make_bumped_bundle "$BUNDLE_DIR" "$bumped"
+
+  # simulate user typing 'm' for each prompt (2 hooks bumped)
+  printf "m\nm\n" | "$INSTALL_SH" \
+    --project-dir "$tmp" \
+    --registry "$tmp/registry.json" \
+    --scope project \
+    --bundle-dir "$bumped"
+
+  # leaderboard hook should be customized:true in manifest
+  customized=$(python3 -c "
+import json
+data = json.load(open('$tmp/.claude/memo-flow-installed.json'))
+for m in data.get('mutations', []):
+    if m.get('kind') == 'hook_script' and 'skill-leaderboard' in m.get('id',''):
+        print(m.get('customized', False))
+        break
+")
+  if [ "$customized" = "True" ]; then
+    ok "mark-customized: manifest entry has customized:true"
+  else
+    fail "mark-customized: manifest entry has customized:true" "got: $customized"
+  fi
+
+  if ! grep -qF "bundle-bump" "$tmp/scripts/memo-flow/skill-leaderboard.sh" 2>/dev/null; then
+    ok "mark-customized: disk file not rewritten"
+  else
+    fail "mark-customized: disk file not rewritten" "file was overwritten"
+  fi
+
+  trap - EXIT
+  rm -rf "$tmp"
+}
+
+echo "--- test: after customized:true, subsequent re-runs skip that hook silently ---"
+{
+  tmp=$(mktemp -d)
+  trap "rm -rf '$tmp'" EXIT
+
+  scaffold_base_install "$tmp"
+
+  "$INSTALL_SH" \
+    --project-dir "$tmp" \
+    --registry "$tmp/registry.json" \
+    --scope project \
+    --bundle-dir "$BUNDLE_DIR" \
+    --non-interactive
+
+  bumped="$tmp/bumped-bundle"
+  make_bumped_bundle "$BUNDLE_DIR" "$bumped"
+
+  # mark-customized via interactive (2 hooks bumped)
+  printf "m\nm\n" | "$INSTALL_SH" \
+    --project-dir "$tmp" \
+    --registry "$tmp/registry.json" \
+    --scope project \
+    --bundle-dir "$bumped"
+
+  # re-run again — should be "all hooks up to date" (customized skipped silently)
+  output=$("$INSTALL_SH" \
+    --project-dir "$tmp" \
+    --registry "$tmp/registry.json" \
+    --scope project \
+    --bundle-dir "$bumped" \
+    --non-interactive 2>&1)
+
+  if echo "$output" | grep -qF "all hooks up to date"; then
+    ok "after customized:true, re-run skips hook silently"
+  else
+    fail "after customized:true, re-run skips hook silently" "got: $output"
+  fi
+
+  trap - EXIT
+  rm -rf "$tmp"
+}
+
+echo "--- test: re-run bundle bump interactive: show-diff then skip ---"
+{
+  tmp=$(mktemp -d)
+  trap "rm -rf '$tmp'" EXIT
+
+  scaffold_base_install "$tmp"
+
+  "$INSTALL_SH" \
+    --project-dir "$tmp" \
+    --registry "$tmp/registry.json" \
+    --scope project \
+    --bundle-dir "$BUNDLE_DIR" \
+    --non-interactive
+
+  bumped="$tmp/bumped-bundle"
+  make_bumped_bundle "$BUNDLE_DIR" "$bumped"
+
+  # simulate: show-diff then skip for each of 2 hooks
+  printf "d\ns\nd\ns\n" | "$INSTALL_SH" \
+    --project-dir "$tmp" \
+    --registry "$tmp/registry.json" \
+    --scope project \
+    --bundle-dir "$bumped"
+  local_exit=$?
+
+  if [ "$local_exit" -eq 0 ]; then
+    ok "show-diff then skip: exits 0"
+  else
+    fail "show-diff then skip: exits 0" "got exit $local_exit"
+  fi
+
+  if ! grep -qF "bundle-bump" "$tmp/scripts/memo-flow/skill-leaderboard.sh" 2>/dev/null; then
+    ok "show-diff then skip: file not modified"
+  else
+    fail "show-diff then skip: file not modified" "file was overwritten"
+  fi
+
+  trap - EXIT
+  rm -rf "$tmp"
+}
+
 # ── summary ───────────────────────────────────────────────────────────────────
 
 echo ""

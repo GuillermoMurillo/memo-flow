@@ -182,6 +182,147 @@ print('yes' if '$id' in ids else 'no')
   fi
 }
 
+# ── re-run detection + drift check ───────────────────────────────────────────
+
+# Check if hooks are already installed (any hook_script mutations in manifest)
+_has_hook_mutations() {
+  python3 -c "
+import json, sys
+try:
+    data = json.load(open('$MANIFEST'))
+    count = sum(1 for m in data.get('mutations', []) if m.get('kind') == 'hook_script')
+    print('yes' if count > 0 else 'no')
+except Exception:
+    print('no')
+" 2>/dev/null || echo "no"
+}
+
+# Return JSON array of drifted hook mutations (bundle checksum differs from manifest).
+# Skips customized:true entries silently.
+_get_drifted_hooks() {
+  python3 -c "
+import json, hashlib, os, sys
+
+def sha256_file(path):
+    h = hashlib.sha256()
+    with open(path, 'rb') as f:
+        for chunk in iter(lambda: f.read(8192), b''):
+            h.update(chunk)
+    return 'sha256:' + h.hexdigest()
+
+try:
+    data = json.load(open('$MANIFEST'))
+except Exception as e:
+    print('[]')
+    sys.exit(0)
+
+drifted = []
+for m in data.get('mutations', []):
+    if m.get('kind') != 'hook_script':
+        continue
+    if m.get('customized', False):
+        continue
+    hook_name = os.path.basename(m['target'])
+    bundle_file = os.path.join('$HOOKS_SRC', hook_name)
+    if not os.path.isfile(bundle_file):
+        continue
+    bundle_checksum = sha256_file(bundle_file)
+    manifest_checksum = m.get('source_checksum', '')
+    if manifest_checksum == bundle_checksum:
+        continue
+    disk_path = os.path.join('$PROJECT_DIR', m['target'])
+    disk_checksum = sha256_file(disk_path) if os.path.isfile(disk_path) else 'missing'
+    drifted.append({
+        'id': m['id'],
+        'target': m['target'],
+        'hook_name': hook_name,
+        'bundle_file': bundle_file,
+        'manifest_checksum': manifest_checksum,
+        'bundle_checksum': bundle_checksum,
+        'disk_checksum': disk_checksum
+    })
+
+print(json.dumps(drifted))
+" 2>/dev/null || echo "[]"
+}
+
+# Prompt the user for one hook and apply the chosen action.
+# Loops on show-diff so the user can still pick an action afterward.
+_prompt_hook_update() {
+  local id="$1" target="$2" bundle_file="$3" disk_path="$4"
+
+  while true; do
+    echo ""
+    echo "  Hook update available: $target"
+    printf "  [u]pdate  [s]kip  [m]ark-customized  [d]iff ? "
+    read -r choice || choice="s"
+    choice=$(echo "$choice" | tr '[:upper:]' '[:lower:]')
+
+    case "$choice" in
+      u|update)
+        cp "$bundle_file" "$disk_path"
+        chmod +x "$disk_path"
+        new_checksum=$(sha256_file "$bundle_file")
+        "$MANIFEST_SH" update-checksum "$MANIFEST" "$id" "$new_checksum"
+        echo "  updated: $target"
+        return 0
+        ;;
+      s|skip)
+        echo "  skipped: $target"
+        return 0
+        ;;
+      m|mark-customized)
+        "$MANIFEST_SH" toggle-customized "$MANIFEST" "$id" "true"
+        echo "  marked customized: $target"
+        return 0
+        ;;
+      d|diff)
+        if [ -f "$disk_path" ]; then
+          diff "$disk_path" "$bundle_file" || true
+        else
+          echo "  (file not on disk)"
+        fi
+        # re-prompt after showing diff
+        ;;
+      *)
+        echo "  unknown option '$choice' — choose u / s / m / d"
+        ;;
+    esac
+  done
+}
+
+if [ "$(_has_hook_mutations)" = "yes" ]; then
+  # Re-run: drift check instead of fresh install
+  drifted_json=$(_get_drifted_hooks)
+  drifted_count=$(python3 -c "import json,sys; print(len(json.loads(sys.argv[1])))" "$drifted_json")
+
+  if [ "$drifted_count" -eq 0 ]; then
+    echo "install-memo-hooks: all hooks up to date"
+    exit 0
+  fi
+
+  if [ "$NON_INTERACTIVE" = true ]; then
+    echo "install-memo-hooks: $drifted_count hook(s) have updates pending — run /install-memo-hooks to review"
+    exit 0
+  fi
+
+  echo "install-memo-hooks: $drifted_count hook(s) have updates available"
+
+  # iterate drifted hooks by index so stdin (for prompts) is not redirected
+  for i in $(python3 -c "import sys; print(' '.join(str(x) for x in range($drifted_count)))"); do
+    hook_json=$(python3 -c "import json,sys; print(json.dumps(json.loads(sys.argv[1])[$i]))" "$drifted_json")
+    id=$(python3 -c "import json,sys; d=json.loads(sys.argv[1]); print(d['id'])" "$hook_json")
+    target=$(python3 -c "import json,sys; d=json.loads(sys.argv[1]); print(d['target'])" "$hook_json")
+    bundle_file=$(python3 -c "import json,sys; d=json.loads(sys.argv[1]); print(d['bundle_file'])" "$hook_json")
+    disk_path="$PROJECT_DIR/$target"
+    _prompt_hook_update "$id" "$target" "$bundle_file" "$disk_path"
+  done
+
+  echo ""
+  echo "install-memo-hooks: done"
+  exit 0
+fi
+
 # ── copy hook scripts ─────────────────────────────────────────────────────────
 
 scripts_dir="$PROJECT_DIR/scripts/memo-flow"

@@ -205,7 +205,21 @@ If `<project-root>/scripts/afk-cook` already exists and is NOT this exact wrappe
 
 If the `afk-cook` skill is not installed in `.claude/skills/`, tell the user the AFK runner cannot be installed and they need to re-run `npx skills@latest add GuillermoMurillo/memo-flow -a claude-code` with `afk-cook` selected.
 
-### 6. Done
+### 6. Check for pending hook updates
+
+If `scripts/install-memo-hooks.sh` exists (hooks tier is available), run it in non-interactive mode to check for pending updates:
+
+```bash
+scripts/install-memo-hooks.sh --non-interactive --scope project 2>/dev/null
+```
+
+- If it prints "all hooks up to date" — no action needed.
+- If it prints "N hook(s) have updates pending" — relay the message to the user: "Hook updates are pending. Run `/install-memo-hooks` to review them."
+- If the script does not exist (hooks not installed) — skip this check silently.
+
+**Do not modify any hook files or settings.json.** This step is read-only for hooks.
+
+### 7. Done
 
 Tell the user the setup is complete and which engineering skills will now read from these files. Mention:
 - They can edit `docs/agents/*.md` directly later. Re-running this skill is only necessary if they want to switch issue trackers or restart from scratch.

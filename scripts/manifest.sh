@@ -17,6 +17,10 @@
 #     Set the `customized` boolean on the named mutation.
 #     Atomic write via temp-and-rename. No-op if mutation not found.
 #
+#   update-checksum <file> <mutation-id> <checksum>
+#     Update source_checksum on the named mutation.
+#     Atomic write via temp-and-rename. No-op if mutation not found.
+#
 #   get-version <file>
 #     Print the memo_flow_version field.
 
@@ -173,6 +177,46 @@ found = False
 for m in data.get('mutations', []):
     if m.get('id') == '$mutation_id':
         m['customized'] = bool_val
+        found = True
+        break
+
+if not found:
+    sys.exit(0)  # no-op if not found
+
+with open('$tmpfile', 'w') as f:
+    json.dump(data, f, indent=2)
+    f.write('\n')
+os.rename('$tmpfile', '$file')
+" || { rm -f "$tmpfile"; exit 1; }
+    ;;
+
+  update-checksum)
+    file="${2:-}"
+    mutation_id="${3:-}"
+    new_checksum="${4:-}"
+    if [ -z "$file" ] || [ -z "$mutation_id" ] || [ -z "$new_checksum" ]; then
+      echo "usage: manifest.sh update-checksum <file> <mutation-id> <checksum>" >&2
+      exit 1
+    fi
+    if [ ! -f "$file" ]; then
+      echo "manifest: file not found: $file" >&2
+      exit 1
+    fi
+    dir="$(dirname "$file")"
+    tmpfile="$(mktemp "$dir/.manifest-tmp-XXXXXX.json")"
+    python3 -c "
+import json, os, sys
+
+try:
+    data = json.load(open('$file'))
+except Exception as e:
+    print(f'manifest: invalid JSON: {e}', file=sys.stderr)
+    sys.exit(1)
+
+found = False
+for m in data.get('mutations', []):
+    if m.get('id') == '$mutation_id':
+        m['source_checksum'] = '$new_checksum'
         found = True
         break
 
