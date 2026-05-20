@@ -40,3 +40,17 @@ CONTEXT.md         controlled vocabulary (vendored vs original, slice, AFK, ...)
 - Each bucket has its own `README.md` listing every skill with a one-line description linked to its `SKILL.md`.
 - Graduating a skill = move folder + add path to `.claude-plugin/plugin.json` + add line to bucket `README.md`.
 - Never branch to hide work-in-progress. Use `in-progress/` instead.
+
+## Agent skills
+
+### Issue tracker
+
+GitHub Issues on `GuillermoMurillo/memo-flow` via the `gh` CLI. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Five canonical labels using their default names (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`). See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: `CONTEXT.md` + `docs/adr/` at repo root. See `docs/agents/domain.md`.
