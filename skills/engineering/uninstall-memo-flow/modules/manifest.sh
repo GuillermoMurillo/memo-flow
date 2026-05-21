@@ -40,7 +40,7 @@ _atomic_write() {
   local file="$1" py_expr="$2"
   local dir tmpfile
   dir="$(dirname "$file")"
-  tmpfile="$(mktemp "$dir/.manifest-tmp-XXXXXX.json")"
+  tmpfile="$(mktemp "$dir/.manifest-tmp-XXXXXX")"
   python3 -c "
 import json, sys, os
 
@@ -65,7 +65,7 @@ case "$cmd" in
     fi
     dir="$(dirname "$file")"
     mkdir -p "$dir"
-    tmpfile="$(mktemp "$dir/.manifest-tmp-XXXXXX.json")"
+    tmpfile="$(mktemp "$dir/.manifest-tmp-XXXXXX")"
     python3 -c "
 import json, os
 data = {
@@ -122,7 +122,7 @@ if sv != $SCHEMA_VERSION:
       exit 1
     fi
     dir="$(dirname "$file")"
-    tmpfile="$(mktemp "$dir/.manifest-tmp-XXXXXX.json")"
+    tmpfile="$(mktemp "$dir/.manifest-tmp-XXXXXX")"
     python3 -c "
 import json, os, sys
 
@@ -130,6 +130,7 @@ try:
     data = json.load(open('$file'))
 except Exception as e:
     print(f'manifest: invalid JSON: {e}', file=sys.stderr)
+    os.unlink('$tmpfile')
     sys.exit(1)
 
 new_mutation = json.loads('''$mutation_json''')
@@ -138,6 +139,7 @@ mutation_id = new_mutation.get('id')
 # idempotent: skip if same id already exists
 for existing in data.get('mutations', []):
     if existing.get('id') == mutation_id:
+        os.unlink('$tmpfile')
         sys.exit(0)
 
 data.setdefault('mutations', []).append(new_mutation)
@@ -162,7 +164,7 @@ os.rename('$tmpfile', '$file')
       exit 1
     fi
     dir="$(dirname "$file")"
-    tmpfile="$(mktemp "$dir/.manifest-tmp-XXXXXX.json")"
+    tmpfile="$(mktemp "$dir/.manifest-tmp-XXXXXX")"
     python3 -c "
 import json, os, sys
 
@@ -204,7 +206,7 @@ os.rename('$tmpfile', '$file')
       exit 1
     fi
     dir="$(dirname "$file")"
-    tmpfile="$(mktemp "$dir/.manifest-tmp-XXXXXX.json")"
+    tmpfile="$(mktemp "$dir/.manifest-tmp-XXXXXX")"
     python3 -c "
 import json, os, sys
 

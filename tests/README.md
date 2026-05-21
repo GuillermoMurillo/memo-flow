@@ -65,9 +65,6 @@ bin/run-tests.sh tests/e2e/
 bash tests/e2e/test-consumer-install.sh
 ```
 
-The `--check-coverage` flag is accepted as a no-op; coverage enforcement will be
-implemented in a later slice.
-
 ## Traceability
 
 Each test file carries a `# Tests:` comment at the top pointing at the module or
@@ -75,13 +72,26 @@ skill it exercises. When adding a new shared module under `_shared-modules/` or 
 new skill entry script, add a corresponding `tests/unit/test-<name>.sh` or
 `tests/integration/test-<name>.sh`.
 
-Coverage gate (future): `bin/run-tests.sh --check-coverage` will walk `_shared-modules/`
-and each skill's entry scripts and fail if a corresponding test file is missing.
+`bin/run-tests.sh --check-coverage` enforces this: it walks `_shared-modules/` and
+each skill's entry scripts and exits non-zero if any source file lacks a test.
+
+## Coverage exemptions
+
+`tests/.coverage-exempt` lists sources that intentionally have no direct test file,
+one per line, with an inline comment justifying the exemption:
+
+```
+# relative-source-path  # justification
+_shared-modules/bundle-inventory.sh    # exercised transitively by e2e; standalone test deferred
+```
+
+Add entries sparingly. A missing test is a gap; use the exempt list only when
+transitive coverage is demonstrably sufficient and direct testing would be redundant.
 
 ## Current state
 
 | Bucket | Files | Notes |
 |--------|-------|-------|
-| `e2e/` | `test-consumer-install.sh` | regression test for PRD #2 manifest-schema bug; goes RED on current main |
-| `unit/` | (empty) | placeholder; populated when `_shared-modules/` is created |
-| `integration/` | (empty) | placeholder; populated when skill entry scripts ship in skill folders |
+| `e2e/` | `test-consumer-install.sh` | regression test for PRD #2 manifest-schema bug |
+| `unit/` | `test-manifest.sh` | covers all manifest.sh commands |
+| `integration/` | `test-install-memo-hooks.sh` | covers non-interactive install + idempotency |

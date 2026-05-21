@@ -30,7 +30,7 @@ CONSUMER_PAIRS=(
   "manifest.sh:setup-memo-flow install-memo-hooks uninstall-memo-flow uninstall-memo-hooks memo-flow-doctor"
   "marker-fence.sh:setup-memo-flow install-memo-hooks uninstall-memo-flow uninstall-memo-hooks memo-flow-doctor"
   "settings-mutator.sh:setup-memo-flow install-memo-hooks uninstall-memo-flow uninstall-memo-hooks"
-  "user-registry.sh:setup-memo-flow uninstall-memo-flow"
+  "user-registry.sh:setup-memo-flow install-memo-hooks uninstall-memo-flow uninstall-memo-hooks"
   "drift-detector.sh:memo-flow-doctor"
   "bundle-inventory.sh:setup-memo-flow memo-flow-doctor"
   "hook-config.sh:install-memo-hooks uninstall-memo-hooks memo-hooks"
