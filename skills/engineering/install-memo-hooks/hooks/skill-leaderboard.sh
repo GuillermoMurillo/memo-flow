@@ -4,7 +4,7 @@
 # Reads a PostToolUse event JSON from stdin. When tool_name == "Skill", increments
 # a counter keyed by skill name in the output_file from config.
 #
-# Config location: $MEMO_FLOW_CONFIG (env) or ./scripts/memo-flow/config.json (cwd)
+# Config location: $MEMO_FLOW_CONFIG (env) or ./.claude/memo-flow/config.json (cwd)
 # Fail-open: missing or unparseable config → treat as enabled with default output_file.
 # Concurrent-fire safe: uses a lock file (flock) or python3 atomic rewrite.
 
@@ -12,7 +12,7 @@ set -euo pipefail
 
 # ── find config ───────────────────────────────────────────────────────────────
 
-CONFIG_FILE="${MEMO_FLOW_CONFIG:-./scripts/memo-flow/config.json}"
+CONFIG_FILE="${MEMO_FLOW_CONFIG:-./.claude/memo-flow/config.json}"
 
 # ── read config (fail-open) ───────────────────────────────────────────────────
 

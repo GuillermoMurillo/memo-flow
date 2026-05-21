@@ -8,7 +8,7 @@
 #   remind-until  — exits 0, stderr line every turn over threshold
 #   auto          — writes a handoff file and exits 2 (blocking) to surface the message
 #
-# Config location: $MEMO_FLOW_CONFIG (env) or ./scripts/memo-flow/config.json (cwd)
+# Config location: $MEMO_FLOW_CONFIG (env) or ./.claude/memo-flow/config.json (cwd)
 # Config key: "context-monitor"
 # Fail-open: missing or unparseable config → treat as enabled with defaults.
 # Disabled hook: exits 0 immediately with no output.
@@ -17,7 +17,7 @@ set -euo pipefail
 
 # ── find config ───────────────────────────────────────────────────────────────
 
-CONFIG_FILE="${MEMO_FLOW_CONFIG:-./scripts/memo-flow/config.json}"
+CONFIG_FILE="${MEMO_FLOW_CONFIG:-./.claude/memo-flow/config.json}"
 
 # ── read config (fail-open) ───────────────────────────────────────────────────
 

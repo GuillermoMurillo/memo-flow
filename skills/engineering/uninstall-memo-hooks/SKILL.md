@@ -11,7 +11,7 @@ Remove the hooks tier from this project while leaving the base tier intact.
 
 ### 1. Check prerequisites
 
-Verify `scripts/uninstall-memo-hooks.sh` exists. If not:
+Verify `.claude/skills/uninstall-memo-hooks/uninstall-memo-hooks.sh` exists. If not:
 
 ```
 npx skills@latest add GuillermoMurillo/memo-flow -a claude-code
@@ -22,22 +22,22 @@ npx skills@latest add GuillermoMurillo/memo-flow -a claude-code
 From the project root:
 
 ```bash
-scripts/uninstall-memo-hooks.sh
+.claude/skills/uninstall-memo-hooks/uninstall-memo-hooks.sh
 ```
 
 The script:
-- Reads hook mutations from `.claude/memo-flow-installed.json`
+- Reads hook mutations from `.claude/memo-flow/manifest.json`
 - Reverses each:
   - `hook_script` / `file_written` — deletes the file
   - `settings_entry` — removes the hook entry from settings.json (project or user scope, as recorded)
   - `gitignore_entry` — removes the line from `.gitignore`
 - Drops hook mutations from the manifest (base mutations untouched)
-- Updates the user registry: removes `"hooks"` from tiers, `"base"` stays
+- Updates the user registry at `~/.claude/memo-flow/registry.json`: removes `"hooks"` from tiers, `"base"` stays
 
 ### 3. Non-interactive mode
 
 ```bash
-scripts/uninstall-memo-hooks.sh --non-interactive
+.claude/skills/uninstall-memo-hooks/uninstall-memo-hooks.sh --non-interactive
 ```
 
 ### 4. Done

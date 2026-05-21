@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# hook-config.sh — read/write scripts/memo-flow/config.json
+# hook-config.sh — read/write .claude/memo-flow/config.json
 #
 # Schema per hook: { "enabled": bool, ...hook-specific keys }
 #

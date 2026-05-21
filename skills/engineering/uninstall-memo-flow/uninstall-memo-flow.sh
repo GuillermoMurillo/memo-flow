@@ -6,7 +6,7 @@
 #
 # Flags:
 #   --project-dir <dir>   project root (default: cwd)
-#   --registry <file>     user registry file (default: ~/.claude/memo-flow-installed.json)
+#   --registry <file>     user registry file (default: ~/.claude/memo-flow/registry.json)
 #   --non-interactive     don't prompt; on fenced-content drift: preserve content, strip fences
 #
 # Refuses to run if "hooks" is still listed in the project's tiers.
@@ -15,15 +15,15 @@
 
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-MANIFEST_SH="$SCRIPT_DIR/manifest.sh"
-REGISTRY_SH="$SCRIPT_DIR/user-registry.sh"
-SETTINGS_SH="$SCRIPT_DIR/settings-mutator.sh"
+SKILL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+MANIFEST_SH="$SKILL_DIR/modules/manifest.sh"
+REGISTRY_SH="$SKILL_DIR/modules/user-registry.sh"
+SETTINGS_SH="$SKILL_DIR/modules/settings-mutator.sh"
 
 # ── arg parsing ───────────────────────────────────────────────────────────────
 
 PROJECT_DIR="$(pwd)"
-REGISTRY="$HOME/.claude/memo-flow-installed.json"
+REGISTRY="$HOME/.claude/memo-flow/registry.json"
 NON_INTERACTIVE=false
 
 while [[ $# -gt 0 ]]; do
@@ -35,11 +35,10 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-MANIFEST="$PROJECT_DIR/.claude/memo-flow-installed.json"
+MANIFEST="$PROJECT_DIR/.claude/memo-flow/manifest.json"
 
 # ── helpers ───────────────────────────────────────────────────────────────────
 
-# fence_strip <file> <section>: remove fence markers, preserve inner content
 fence_strip() {
   local file="$1" section="$2"
   local begin="<!-- BEGIN memo-flow:${section} -->"
@@ -54,7 +53,6 @@ fence_strip() {
   mv "$tmpfile" "$file"
 }
 
-# fence_remove_all <file> <section>: remove fence markers and inner content
 fence_remove_all() {
   local file="$1" section="$2"
   local begin="<!-- BEGIN memo-flow:${section} -->"
@@ -70,7 +68,6 @@ fence_remove_all() {
   mv "$tmpfile" "$file"
 }
 
-# fence_inner_content <file> <section>: print lines inside fence (exclusive)
 fence_inner_content() {
   local file="$1" section="$2"
   local begin="<!-- BEGIN memo-flow:${section} -->"
@@ -82,39 +79,33 @@ fence_inner_content() {
   ' "$file"
 }
 
-# reverse_doc_block <target-abs> <section>
 reverse_doc_block() {
   local target="$1" section="$2"
 
   if [ ! -f "$target" ]; then
-    return 0  # nothing to do
+    return 0
   fi
 
   local begin="<!-- BEGIN memo-flow:${section} -->"
   if ! grep -qF "$begin" "$target" 2>/dev/null; then
-    return 0  # fence absent, nothing to do
+    return 0
   fi
 
   local inner
   inner=$(fence_inner_content "$target" "$section")
-  # strip leading/trailing blank lines for the empty check
   local trimmed
   trimmed=$(echo "$inner" | sed '/^[[:space:]]*$/d')
 
   if [ -z "$trimmed" ]; then
-    # no meaningful inner content: remove fence + content silently
     fence_remove_all "$target" "$section"
     return 0
   fi
 
-  # inner content exists (possible user edits)
   if [ "$NON_INTERACTIVE" = true ]; then
-    # non-interactive default: strip fences, preserve content
     fence_strip "$target" "$section"
     return 0
   fi
 
-  # interactive: prompt
   echo ""
   echo "Section '${section}' in '${target}' contains content:"
   echo "---"
@@ -129,7 +120,6 @@ reverse_doc_block() {
   esac
 }
 
-# gitignore_remove_line <file> <line>: remove exact matching line
 gitignore_remove_line() {
   local file="$1" line="$2"
   if [ ! -f "$file" ]; then
@@ -150,7 +140,6 @@ fi
 
 "$MANIFEST_SH" validate "$MANIFEST" 2>&1 || exit 1
 
-# check registry for hooks tier
 if [ -f "$REGISTRY" ]; then
   has_hooks=$(python3 -c "
 import json, sys

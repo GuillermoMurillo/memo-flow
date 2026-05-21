@@ -75,7 +75,7 @@ Follow this template exactly (replace `<NAME>`, `<EVENT>`, etc.):
 #
 # <Behavior summary — what it does and when>
 #
-# Config location: $MEMO_FLOW_CONFIG (env) or ./scripts/memo-flow/config.json (cwd)
+# Config location: $MEMO_FLOW_CONFIG (env) or ./.claude/memo-flow/config.json (cwd)
 # Config key: "<name>"
 # Fail-open: missing or unparseable config → treat as enabled with defaults.
 # Disabled hook: exits 0 immediately with no output.
@@ -84,7 +84,7 @@ set -euo pipefail
 
 # ── find config ───────────────────────────────────────────────────────────────
 
-CONFIG_FILE="${MEMO_FLOW_CONFIG:-./scripts/memo-flow/config.json}"
+CONFIG_FILE="${MEMO_FLOW_CONFIG:-./.claude/memo-flow/config.json}"
 
 # ── read config (fail-open) ───────────────────────────────────────────────────
 
@@ -134,7 +134,7 @@ event=$(cat)
 
 #### 3b. hook-config.sh default block
 
-Add the hook's entry to `_DEFAULTS` in `scripts/hook-config.sh`:
+Add the hook's entry to `_DEFAULTS` in `modules/hook-config.sh`:
 
 ```json
 "<name>": {
@@ -151,7 +151,7 @@ The entry that `install-memo-hooks.sh` will register. Show the exact JSON:
 ```json
 {
   "id": "memo-flow:<name>",
-  "command": "scripts/memo-flow/<name>.sh",
+  "command": ".claude/memo-flow/hooks/<name>.sh",
   "type": "stdin"
 }
 ```
@@ -179,9 +179,9 @@ Write the hook script, update hook-config.sh `_DEFAULTS`, and update install-mem
 ### 6. Done
 
 Confirm the four outputs were written or shown. Remind the author:
-- Add an integration test in `scripts/test-context-monitor.sh` (or `test-<name>.sh`)
-- Update `scripts/install-memo-hooks.sh` to register the new settings entry
-- Run `bash scripts/test-install-memo-hooks.sh` to verify end-to-end
+- Add an integration test under `tests/` for the new hook
+- Update `skills/engineering/install-memo-hooks/install-memo-hooks.sh` to register the new settings entry
+- Run `bash bin/run-tests.sh` to verify end-to-end
 
 ## Notes
 

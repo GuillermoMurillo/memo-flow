@@ -11,10 +11,10 @@ Check the health of a memo-flow managed project. Read-only by default.
 
 ### 1. Locate the script
 
-The doctor logic lives in `scripts/memo-flow-doctor.sh` at the project root. Confirm it exists before proceeding:
+The doctor logic lives in `.claude/skills/memo-flow-doctor/memo-flow-doctor.sh`. Confirm it exists before proceeding:
 
 ```bash
-ls scripts/memo-flow-doctor.sh
+ls .claude/skills/memo-flow-doctor/memo-flow-doctor.sh
 ```
 
 If it doesn't exist, tell the user to re-install the bundle:
@@ -37,7 +37,7 @@ Pass whichever exists. If neither exists, tell the user to re-install.
 From the project root (read-only mode by default):
 
 ```bash
-scripts/memo-flow-doctor.sh --bundle-dir <bundle-dir>
+.claude/skills/memo-flow-doctor/memo-flow-doctor.sh --bundle-dir <bundle-dir>
 ```
 
 Report the output to the user. Each managed mutation is listed with one of:
@@ -55,7 +55,7 @@ Report the output to the user. Each managed mutation is listed with one of:
 If the user wants to repair all fixable items non-interactively:
 
 ```bash
-scripts/memo-flow-doctor.sh --fix --bundle-dir <bundle-dir>
+.claude/skills/memo-flow-doctor/memo-flow-doctor.sh --fix --bundle-dir <bundle-dir>
 ```
 
 This restores `missing` and `drifted-clean` files from the bundle, and overwrites `drifted-edited` files (restoring bundle content). It never touches `customized` mutations.
@@ -64,7 +64,8 @@ For `drifted-edited` files, warn the user before running `--fix` that their edit
 
 ```bash
 # note the mutation id from the doctor report, then:
-scripts/manifest.sh toggle-customized .claude/memo-flow-installed.json <mutation-id> true
+SKILL_DIR=".claude/skills/memo-flow-doctor"
+"$SKILL_DIR/modules/manifest.sh" toggle-customized .claude/memo-flow/manifest.json <mutation-id> true
 ```
 
 ### 5. Config-level decisions

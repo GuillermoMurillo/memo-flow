@@ -3,7 +3,7 @@
 #
 # Memo-flow entries are identified by:
 #   primary:   id field matching "memo-flow:<hook>"
-#   fallback:  command field starting with "scripts/memo-flow/<hook>.sh"
+#   fallback:  command field starting with ".claude/memo-flow/hooks/<hook>.sh"
 #
 # Commands:
 #   insert <file> <event> <matcher> <hook-json>

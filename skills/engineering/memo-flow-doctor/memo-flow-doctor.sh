@@ -10,7 +10,7 @@
 #   --bundle-dir <dir>    bundle source directory (default: auto-detect)
 #   --fix                 non-interactively restore all non-customized drifted/missing files
 #   --survey              roll-up check across all projects in the user registry
-#   --registry <file>     user registry file (default: ~/.claude/memo-flow-installed.json)
+#   --registry <file>     user registry file (default: ~/.claude/memo-flow/registry.json)
 #
 # Reports per-mutation status:
 #   up-to-date      disk matches both manifest and bundle checksums
@@ -25,10 +25,10 @@
 
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-MANIFEST_SH="$SCRIPT_DIR/manifest.sh"
-BUNDLE_INV_SH="$SCRIPT_DIR/bundle-inventory.sh"
-DRIFT_SH="$SCRIPT_DIR/drift-detector.sh"
+SKILL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+MANIFEST_SH="$SKILL_DIR/modules/manifest.sh"
+BUNDLE_INV_SH="$SKILL_DIR/modules/bundle-inventory.sh"
+DRIFT_SH="$SKILL_DIR/modules/drift-detector.sh"
 
 # ── arg parsing ───────────────────────────────────────────────────────────────
 
@@ -36,7 +36,7 @@ PROJECT_DIR="$(pwd)"
 BUNDLE_DIR=""
 FIX=false
 SURVEY=false
-REGISTRY_FILE="$HOME/.claude/memo-flow-installed.json"
+REGISTRY_FILE="$HOME/.claude/memo-flow/registry.json"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -57,7 +57,6 @@ if [ "$SURVEY" = true ]; then
     exit 1
   fi
 
-  # resolve bundle dir for survey (same auto-detect logic as single-project)
   if [ -z "$BUNDLE_DIR" ]; then
     if [ -d "$HOME/.claude/skills/memo-flow" ]; then
       BUNDLE_DIR="$HOME/.claude/skills/memo-flow"
@@ -94,7 +93,7 @@ for p in data.get('projects', []):
       continue
     fi
 
-    proj_manifest="$proj_path/.claude/memo-flow-installed.json"
+    proj_manifest="$proj_path/.claude/memo-flow/manifest.json"
     if [ ! -f "$proj_manifest" ]; then
       printf "  %-50s  %s\n" "$proj_path" "no manifest"
       continue
@@ -135,7 +134,7 @@ else:
   exit 0
 fi
 
-MANIFEST="$PROJECT_DIR/.claude/memo-flow-installed.json"
+MANIFEST="$PROJECT_DIR/.claude/memo-flow/manifest.json"
 
 # ── pre-flight ────────────────────────────────────────────────────────────────
 
@@ -149,7 +148,6 @@ fi
 # ── locate bundle ─────────────────────────────────────────────────────────────
 
 if [ -z "$BUNDLE_DIR" ]; then
-  # auto-detect: check user-level then project-level
   if [ -d "$HOME/.claude/skills/memo-flow" ]; then
     BUNDLE_DIR="$HOME/.claude/skills/memo-flow"
   elif [ -d "$PROJECT_DIR/.claude/skills/memo-flow" ]; then
@@ -194,7 +192,6 @@ if [ "$total" -eq 0 ]; then
   exit 0
 fi
 
-# print each finding
 python3 -c "
 import json, sys
 items = json.loads(sys.argv[1])
@@ -230,10 +227,6 @@ fi
 echo ""
 echo "memo-flow-doctor: applying fixes..."
 
-fixed=0
-skipped=0
-
-# iterate findings and fix file_written mutations
 python3 -c "
 import json, sys
 items = json.loads(sys.argv[1])
@@ -246,11 +239,9 @@ for item in items:
 
   case "$status" in
     up-to-date|customized)
-      # nothing to do
       continue
       ;;
     missing|drifted-edited|drifted-clean)
-      # find the source in the bundle via inventory
       source_rel=$(python3 -c "
 import json, sys
 inv = json.load(open('$INVENTORY_FILE'))

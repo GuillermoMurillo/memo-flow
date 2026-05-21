@@ -225,14 +225,31 @@ fi
 
 echo ""
 
+# ── simulate /install-memo-hooks (non-interactive) ───────────────────────────
+#
+# Run the entry script from the consumer install non-interactively.
+# Per ADR 0002, the entry script lives at:
+#   .claude/skills/install-memo-hooks/install-memo-hooks.sh
+# This mirrors the real user journey: after /setup-memo-flow, the user runs
+# /install-memo-hooks to install the hooks tier.
+
+INSTALL_HOOKS_SH="$SCRATCH/.claude/skills/install-memo-hooks/install-memo-hooks.sh"
+
+if [[ -f "$INSTALL_HOOKS_SH" ]] && [[ -f "$MANIFEST_FILE" ]]; then
+  echo "--- simulating /install-memo-hooks ---"
+  chmod +x "$INSTALL_HOOKS_SH"
+  bash "$INSTALL_HOOKS_SH" \
+    --non-interactive \
+    --scope project \
+    --project-dir "$SCRATCH" 2>/dev/null || true
+  echo ""
+fi
+
 # ── test 3: hook scripts at .claude/memo-flow/hooks/ ─────────────────────────
 #
 # After /install-memo-hooks, hook scripts must be present at
 # .claude/memo-flow/hooks/context-monitor.sh and
 # .claude/memo-flow/hooks/skill-leaderboard.sh.
-#
-# Currently fails because install-memo-hooks has no entry script in the skill
-# folder and its modules/ are also absent.
 
 echo "--- test: hook scripts present after install ---"
 

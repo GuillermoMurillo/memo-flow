@@ -155,24 +155,25 @@ If the user picked **GitLab**, do the equivalent with `glab label create` (the G
 
 After writing the config files, record the install in the two state files.
 
-**Detect existing install first.** Read `.claude/memo-flow-installed.json` if it exists and look for `<!-- BEGIN memo-flow:agent-skills -->` already in the target file. If both the manifest entry for `memo-flow:agent-skills` is present AND the fence is already in the file with matching content, the install is up-to-date: tell the user "already configured, nothing to do" and stop. Do not re-write anything.
+**Detect existing install first.** Read `.claude/memo-flow/manifest.json` if it exists and look for `<!-- BEGIN memo-flow:agent-skills -->` already in the target file. If both the manifest entry for `memo-flow:agent-skills` is present AND the fence is already in the file with matching content, the install is up-to-date: tell the user "already configured, nothing to do" and stop. Do not re-write anything.
 
 **On first run (no manifest or missing entry):**
 
-Use `scripts/manifest.sh` from the project root to write the manifest:
+Use the vendored `modules/manifest.sh` from the skill folder to write the manifest:
 
 ```bash
-# Create or update manifest at .claude/memo-flow-installed.json
-scripts/manifest.sh init .claude/memo-flow-installed.json "<bundle-version>"
-scripts/manifest.sh append .claude/memo-flow-installed.json \
+# Create or update manifest at .claude/memo-flow/manifest.json
+SKILL_DIR="$(dirname "$0")"
+"$SKILL_DIR/modules/manifest.sh" init .claude/memo-flow/manifest.json "<bundle-version>"
+"$SKILL_DIR/modules/manifest.sh" append .claude/memo-flow/manifest.json \
   '{"id":"memo-flow:agent-skills","kind":"doc_block","target":"<AGENTS.md or CLAUDE.md>","section":"agent-skills","customized":false}'
 ```
 
-Then register the project in the user-level registry using `scripts/user-registry.sh`:
+Then register the project in the user-level registry using the vendored `modules/user-registry.sh`:
 
 ```bash
-# Register in ~/.claude/memo-flow-installed.json
-scripts/user-registry.sh insert ~/.claude/memo-flow-installed.json \
+# Register in ~/.claude/memo-flow/registry.json
+"$SKILL_DIR/modules/user-registry.sh" insert ~/.claude/memo-flow/registry.json \
   "<absolute-path-to-project-root>" '["base"]'
 ```
 
@@ -180,7 +181,7 @@ The `<bundle-version>` comes from the `name` field in `.claude-plugin/plugin.jso
 
 **On re-run (manifest entry already present, fence already in file, content unchanged):**
 
-No-op. Tell the user "already configured, nothing to do." Do not call `manifest.sh` or `user-registry.sh` again.
+No-op. Tell the user "already configured, nothing to do." Do not call `modules/manifest.sh` or `modules/user-registry.sh` again.
 
 **On re-run with changed content** (fence present but inner content differs — user edited it or config changed):
 
@@ -188,29 +189,29 @@ Re-render the `## Agent skills` block via the fence insert (step 4), but leave t
 
 ### 6. Install the AFK runner wrapper
 
-After writing the config files, install a thin wrapper at `<project-root>/scripts/afk-cook` that delegates to the installed `afk-cook` skill. The wrapper is a stable, 2-line interface; the real script and prompt template stay in `.claude/skills/afk-cook/` and update automatically when the user runs `npx skills@latest update`.
+After writing the config files, install a thin wrapper at `<project-root>/.claude/memo-flow/bin/afk-cook` that delegates to the installed `afk-cook` skill. The wrapper is a stable, 2-line interface; the real script and prompt template stay in `.claude/skills/afk-cook/` and update automatically when the user runs `npx skills@latest update`.
 
-Create `<project-root>/scripts/` if it doesn't exist. Write `<project-root>/scripts/afk-cook` with exactly these contents:
+Create `<project-root>/.claude/memo-flow/bin/` if it doesn't exist. Write `<project-root>/.claude/memo-flow/bin/afk-cook` with exactly these contents:
 
 ```bash
 #!/usr/bin/env bash
-exec "$(dirname "$0")/../.claude/skills/afk-cook/afk-cook" "$@"
+exec "$(dirname "$0")/../../../skills/afk-cook/afk-cook" "$@"
 ```
 
-Make it executable: `chmod +x <project-root>/scripts/afk-cook`.
+Make it executable: `chmod +x <project-root>/.claude/memo-flow/bin/afk-cook`.
 
-Do NOT copy `slice-prompt.md` into `scripts/`. The real `afk-cook` script in `.claude/skills/afk-cook/` already reads its prompt template from its own sibling location, so the wrapper inherits the latest template automatically.
+Do NOT copy `slice-prompt.md` into the wrapper directory. The real `afk-cook` script in `.claude/skills/afk-cook/` already reads its prompt template from its own sibling location, so the wrapper inherits the latest template automatically.
 
-If `<project-root>/scripts/afk-cook` already exists and is NOT this exact wrapper (e.g. an older copy from a previous install), ask the user whether to replace it. Default to replacing, since the wrapper is the auto-update path.
+If `<project-root>/.claude/memo-flow/bin/afk-cook` already exists and is NOT this exact wrapper (e.g. an older copy from a previous install), ask the user whether to replace it. Default to replacing, since the wrapper is the auto-update path.
 
 If the `afk-cook` skill is not installed in `.claude/skills/`, tell the user the AFK runner cannot be installed and they need to re-run `npx skills@latest add GuillermoMurillo/memo-flow -a claude-code` with `afk-cook` selected.
 
-### 6. Check for pending hook updates
+### 7. Check for pending hook updates
 
-If `scripts/install-memo-hooks.sh` exists (hooks tier is available), run it in non-interactive mode to check for pending updates:
+If `.claude/skills/install-memo-hooks/install-memo-hooks.sh` exists (hooks tier is available), run it in non-interactive mode to check for pending updates:
 
 ```bash
-scripts/install-memo-hooks.sh --non-interactive --scope project 2>/dev/null
+.claude/skills/install-memo-hooks/install-memo-hooks.sh --non-interactive --scope project 2>/dev/null
 ```
 
 - If it prints "all hooks up to date" — no action needed.
@@ -219,12 +220,12 @@ scripts/install-memo-hooks.sh --non-interactive --scope project 2>/dev/null
 
 **Do not modify any hook files or settings.json.** This step is read-only for hooks.
 
-### 7. Done
+### 8. Done
 
 Tell the user the setup is complete and which engineering skills will now read from these files. Mention:
 - They can edit `docs/agents/*.md` directly later. Re-running this skill is only necessary if they want to switch issue trackers or restart from scratch.
-- The AFK runner is at `./scripts/afk-cook`. Run it from the project root. The file is a thin wrapper; the real script lives in `.claude/skills/afk-cook/` and updates with `npx skills@latest update`. See the `afk-cook` skill (`.claude/skills/afk-cook/SKILL.md`) for usage.
+- The AFK runner is at `./.claude/memo-flow/bin/afk-cook`. Run it from the project root. The file is a thin wrapper; the real script lives in `.claude/skills/afk-cook/` and updates with `npx skills@latest update`. See the `afk-cook` skill (`.claude/skills/afk-cook/SKILL.md`) for usage.
 
 **If the user picked the local-markdown issue tracker in Section A**, add this explicit caveat:
 
-> Note: the AFK runner (`./scripts/afk-cook`) only works with GitHub Issues. It queues work by calling `gh issue list --label ready-for-agent` and does not read the local-markdown `.scratch/` convention. Every interactive skill works fine with local-markdown, but the batch runner will stay idle. To use AFK, push this repo to GitHub and re-run `/setup-memo-flow` so the tracker config switches.
+> Note: the AFK runner (`./.claude/memo-flow/bin/afk-cook`) only works with GitHub Issues. It queues work by calling `gh issue list --label ready-for-agent` and does not read the local-markdown `.scratch/` convention. Every interactive skill works fine with local-markdown, but the batch runner will stay idle. To use AFK, push this repo to GitHub and re-run `/setup-memo-flow` so the tracker config switches.

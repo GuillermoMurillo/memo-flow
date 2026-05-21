@@ -23,16 +23,17 @@ SRC_DIR="$REPO_ROOT/_shared-modules"
 SKILLS_DIR="$REPO_ROOT/skills/engineering"
 
 # Module → consuming skills.
+# Format: "module:skill1 skill2 skill3"
 # When a skill starts using a new module, add it here. When a skill stops,
 # remove it. The sync script is the single declaration of who consumes what.
-declare -A CONSUMERS=(
-  [manifest.sh]="setup-memo-flow install-memo-hooks uninstall-memo-flow uninstall-memo-hooks memo-flow-doctor"
-  [marker-fence.sh]="setup-memo-flow install-memo-hooks uninstall-memo-flow uninstall-memo-hooks memo-flow-doctor"
-  [settings-mutator.sh]="setup-memo-flow install-memo-hooks uninstall-memo-flow uninstall-memo-hooks"
-  [user-registry.sh]="setup-memo-flow uninstall-memo-flow"
-  [drift-detector.sh]="memo-flow-doctor"
-  [bundle-inventory.sh]="setup-memo-flow memo-flow-doctor"
-  [hook-config.sh]="install-memo-hooks uninstall-memo-hooks memo-hooks"
+CONSUMER_PAIRS=(
+  "manifest.sh:setup-memo-flow install-memo-hooks uninstall-memo-flow uninstall-memo-hooks memo-flow-doctor"
+  "marker-fence.sh:setup-memo-flow install-memo-hooks uninstall-memo-flow uninstall-memo-hooks memo-flow-doctor"
+  "settings-mutator.sh:setup-memo-flow install-memo-hooks uninstall-memo-flow uninstall-memo-hooks"
+  "user-registry.sh:setup-memo-flow uninstall-memo-flow"
+  "drift-detector.sh:memo-flow-doctor"
+  "bundle-inventory.sh:setup-memo-flow memo-flow-doctor"
+  "hook-config.sh:install-memo-hooks uninstall-memo-hooks memo-hooks"
 )
 
 MODE="write"
@@ -42,14 +43,17 @@ fi
 
 drift_count=0
 
-for module in "${!CONSUMERS[@]}"; do
+for pair in "${CONSUMER_PAIRS[@]}"; do
+  module="${pair%%:*}"
+  skills_str="${pair#*:}"
   src="$SRC_DIR/$module"
+
   if [[ ! -f "$src" ]]; then
     echo "error: source module not found: $src" >&2
     exit 2
   fi
 
-  for skill in ${CONSUMERS[$module]}; do
+  for skill in $skills_str; do
     dest_dir="$SKILLS_DIR/$skill/modules"
     dest="$dest_dir/$module"
 

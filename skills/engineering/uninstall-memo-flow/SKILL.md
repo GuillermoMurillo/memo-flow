@@ -11,7 +11,7 @@ Reverse all base-tier mutations recorded in the manifest and remove this project
 
 ### 1. Pre-flight
 
-Check that `scripts/uninstall-memo-flow.sh` exists in the project root. If it doesn't, tell the user this script is part of the memo-flow bundle and they need to re-install:
+Check that `.claude/skills/uninstall-memo-flow/uninstall-memo-flow.sh` exists. If it doesn't, tell the user this script is part of the memo-flow bundle and they need to re-install:
 
 ```
 npx skills@latest add GuillermoMurillo/memo-flow -a claude-code
@@ -22,12 +22,12 @@ npx skills@latest add GuillermoMurillo/memo-flow -a claude-code
 From the project root:
 
 ```bash
-scripts/uninstall-memo-flow.sh
+.claude/skills/uninstall-memo-flow/uninstall-memo-flow.sh
 ```
 
 The script:
-- Reads `.claude/memo-flow-installed.json` (the manifest)
-- Checks `~/.claude/memo-flow-installed.json` (the user registry) for the project's tiers
+- Reads `.claude/memo-flow/manifest.json` (the manifest)
+- Checks `~/.claude/memo-flow/registry.json` (the user registry) for the project's tiers
 - Refuses with a clear error if `"hooks"` is still in tiers (instructs user to run `/uninstall-memo-hooks` first)
 - Reverses each mutation in the manifest:
   - `doc_block` — removes fence markers and inner content if the region is empty; if inner content exists, prompts interactively (or preserves content + strips fences in non-interactive mode)
@@ -42,7 +42,7 @@ The script:
 Pass `--non-interactive` to skip prompts. On fenced regions with inner content the default is: preserve content, strip fence markers.
 
 ```bash
-scripts/uninstall-memo-flow.sh --non-interactive
+.claude/skills/uninstall-memo-flow/uninstall-memo-flow.sh --non-interactive
 ```
 
 ### 4. Done

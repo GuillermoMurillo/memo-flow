@@ -6,7 +6,7 @@
 #
 # Flags:
 #   --project-dir <dir>   project root (default: cwd)
-#   --registry <file>     user registry file (default: ~/.claude/memo-flow-installed.json)
+#   --registry <file>     user registry file (default: ~/.claude/memo-flow/registry.json)
 #   --non-interactive     don't prompt; default preserve + strip fences
 #
 # Behavior:
@@ -17,15 +17,15 @@
 
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-MANIFEST_SH="$SCRIPT_DIR/manifest.sh"
-REGISTRY_SH="$SCRIPT_DIR/user-registry.sh"
-SETTINGS_SH="$SCRIPT_DIR/settings-mutator.sh"
+SKILL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+MANIFEST_SH="$SKILL_DIR/modules/manifest.sh"
+REGISTRY_SH="$SKILL_DIR/modules/user-registry.sh"
+SETTINGS_SH="$SKILL_DIR/modules/settings-mutator.sh"
 
 # ── arg parsing ───────────────────────────────────────────────────────────────
 
 PROJECT_DIR="$(pwd)"
-REGISTRY="$HOME/.claude/memo-flow-installed.json"
+REGISTRY="$HOME/.claude/memo-flow/registry.json"
 NON_INTERACTIVE=false
 
 while [[ $# -gt 0 ]]; do
@@ -37,7 +37,7 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-MANIFEST="$PROJECT_DIR/.claude/memo-flow-installed.json"
+MANIFEST="$PROJECT_DIR/.claude/memo-flow/manifest.json"
 
 # ── pre-flight ────────────────────────────────────────────────────────────────
 
@@ -50,8 +50,6 @@ fi
 
 # ── read hook mutations from manifest ────────────────────────────────────────
 
-# Hook mutations are identified by ids starting with memo-flow:hook- or
-# memo-flow:settings-skill- or memo-flow:gitignore-hook-
 hook_mutations=$(python3 -c "
 import json
 data = json.load(open('$MANIFEST'))
@@ -82,8 +80,6 @@ gitignore_remove_line() {
   grep -vxF "$line" "$file" > "$tmpfile" || true
   mv "$tmpfile" "$file"
 }
-
-# ── resolve settings file for a mutation ─────────────────────────────────────
 
 settings_file_for_mutation() {
   local mutation="$1"

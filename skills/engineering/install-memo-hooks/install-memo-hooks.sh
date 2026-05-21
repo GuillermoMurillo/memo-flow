@@ -8,19 +8,19 @@
 #
 # Flags:
 #   --project-dir <dir>   project root (default: cwd)
-#   --registry <file>     user registry file (default: ~/.claude/memo-flow-installed.json)
+#   --registry <file>     user registry file (default: ~/.claude/memo-flow/registry.json)
 #   --scope <user|project> where to register settings entries.
 #                         user  → ~/.claude/settings.json
 #                         project → <project>/.claude/settings.json
 #                         (prompted interactively if not supplied and not --non-interactive)
 #   --bundle-dir <dir>    path to install-memo-hooks skill bundle
-#                         (default: relative to SCRIPT_DIR)
+#                         (default: the skill folder containing this script)
 #   --non-interactive     don't prompt; default scope = project
 #
 # Behavior:
 #   - Detects cross-scope double-install and warns loudly (exits 1)
-#   - Copies hook scripts to <project>/scripts/memo-flow/
-#   - Generates scripts/memo-flow/config.json with defaults
+#   - Copies hook scripts to <project>/.claude/memo-flow/hooks/
+#   - Generates .claude/memo-flow/config.json with defaults
 #   - Adds gitignore entries for config.json
 #   - Adds settings.json entries via settings-mutator
 #   - Updates manifest with per-mutation source_checksum
@@ -29,15 +29,15 @@
 
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-MANIFEST_SH="$SCRIPT_DIR/manifest.sh"
-REGISTRY_SH="$SCRIPT_DIR/user-registry.sh"
-SETTINGS_SH="$SCRIPT_DIR/settings-mutator.sh"
+SKILL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+MANIFEST_SH="$SKILL_DIR/modules/manifest.sh"
+REGISTRY_SH="$SKILL_DIR/modules/user-registry.sh"
+SETTINGS_SH="$SKILL_DIR/modules/settings-mutator.sh"
 
 # ── arg parsing ───────────────────────────────────────────────────────────────
 
 PROJECT_DIR="$(pwd)"
-REGISTRY="$HOME/.claude/memo-flow-installed.json"
+REGISTRY="$HOME/.claude/memo-flow/registry.json"
 SCOPE=""
 BUNDLE_DIR=""
 NON_INTERACTIVE=false
@@ -53,13 +53,9 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-# default bundle dir: sibling of scripts/ pointing at the skill folder
+# default bundle dir: the skill folder containing this entry script
 if [ -z "$BUNDLE_DIR" ]; then
-  BUNDLE_DIR="$(cd "$SCRIPT_DIR/.." && pwd)/.claude/skills/install-memo-hooks"
-  if [ ! -d "$BUNDLE_DIR" ]; then
-    # fall back to source-repo layout
-    BUNDLE_DIR="$(cd "$SCRIPT_DIR/.." && pwd)/skills/engineering/install-memo-hooks"
-  fi
+  BUNDLE_DIR="$SKILL_DIR"
 fi
 
 HOOKS_SRC="$BUNDLE_DIR/hooks"
@@ -68,7 +64,7 @@ if [ ! -d "$HOOKS_SRC" ]; then
   exit 1
 fi
 
-MANIFEST="$PROJECT_DIR/.claude/memo-flow-installed.json"
+MANIFEST="$PROJECT_DIR/.claude/memo-flow/manifest.json"
 
 # ── scope resolution ──────────────────────────────────────────────────────────
 
@@ -114,7 +110,7 @@ try:
             for h in group.get('hooks', []):
                 cmd = str(h.get('command', ''))
                 mid = str(h.get('id', ''))
-                if (cmd.startswith('scripts/memo-flow/') and cmd.endswith('.sh')) or mid.startswith('memo-flow:skill-'):
+                if (cmd.startswith('.claude/memo-flow/hooks/') and cmd.endswith('.sh')) or mid.startswith('memo-flow:skill-'):
                     print('yes')
                     sys.exit(0)
     print('no')
@@ -161,11 +157,6 @@ gitignore_add_line() {
   echo "$line" >> "$file"
 }
 
-# manifest_append_if_absent: pre-check before calling manifest.sh append.
-# manifest.sh append has a tmpfile cleanup issue on macOS when the no-op
-# path is hit (the template .manifest-tmp-XXXXXX.json is not substituted
-# by BSD mktemp, so every no-op call leaves a stale file that blocks the
-# next call). Pre-checking avoids hitting that path.
 manifest_append_if_absent() {
   local file="$1" mutation_json="$2"
   local id
@@ -184,7 +175,6 @@ print('yes' if '$id' in ids else 'no')
 
 # ── re-run detection + drift check ───────────────────────────────────────────
 
-# Check if hooks are already installed (any hook_script mutations in manifest)
 _has_hook_mutations() {
   python3 -c "
 import json, sys
@@ -197,8 +187,6 @@ except Exception:
 " 2>/dev/null || echo "no"
 }
 
-# Return JSON array of drifted hook mutations (bundle checksum differs from manifest).
-# Skips customized:true entries silently.
 _get_drifted_hooks() {
   python3 -c "
 import json, hashlib, os, sys
@@ -246,8 +234,6 @@ print(json.dumps(drifted))
 " 2>/dev/null || echo "[]"
 }
 
-# Prompt the user for one hook and apply the chosen action.
-# Loops on show-diff so the user can still pick an action afterward.
 _prompt_hook_update() {
   local id="$1" target="$2" bundle_file="$3" disk_path="$4"
 
@@ -282,7 +268,6 @@ _prompt_hook_update() {
         else
           echo "  (file not on disk)"
         fi
-        # re-prompt after showing diff
         ;;
       *)
         echo "  unknown option '$choice' — choose u / s / m / d"
@@ -292,7 +277,6 @@ _prompt_hook_update() {
 }
 
 if [ "$(_has_hook_mutations)" = "yes" ]; then
-  # Re-run: drift check instead of fresh install
   drifted_json=$(_get_drifted_hooks)
   drifted_count=$(python3 -c "import json,sys; print(len(json.loads(sys.argv[1])))" "$drifted_json")
 
@@ -308,7 +292,6 @@ if [ "$(_has_hook_mutations)" = "yes" ]; then
 
   echo "install-memo-hooks: $drifted_count hook(s) have updates available"
 
-  # iterate drifted hooks by index so stdin (for prompts) is not redirected
   for i in $(python3 -c "import sys; print(' '.join(str(x) for x in range($drifted_count)))"); do
     hook_json=$(python3 -c "import json,sys; print(json.dumps(json.loads(sys.argv[1])[$i]))" "$drifted_json")
     id=$(python3 -c "import json,sys; d=json.loads(sys.argv[1]); print(d['id'])" "$hook_json")
@@ -325,13 +308,13 @@ fi
 
 # ── copy hook scripts ─────────────────────────────────────────────────────────
 
-scripts_dir="$PROJECT_DIR/scripts/memo-flow"
-mkdir -p "$scripts_dir"
+hooks_dir="$PROJECT_DIR/.claude/memo-flow/hooks"
+mkdir -p "$hooks_dir"
 
 for hook_src in "$HOOKS_SRC"/*.sh; do
   [ -f "$hook_src" ] || continue
   hook_name="$(basename "$hook_src")"
-  hook_dest="$scripts_dir/$hook_name"
+  hook_dest="$hooks_dir/$hook_name"
   hook_stem="${hook_name%.sh}"
 
   cp "$hook_src" "$hook_dest"
@@ -339,14 +322,13 @@ for hook_src in "$HOOKS_SRC"/*.sh; do
 
   checksum=$(sha256_file "$hook_src")
 
-  # record hook_script mutation (idempotent)
   manifest_append_if_absent "$MANIFEST" \
-    "{\"id\":\"memo-flow:hook-${hook_stem}\",\"kind\":\"hook_script\",\"target\":\"scripts/memo-flow/${hook_name}\",\"source_checksum\":\"${checksum}\",\"customized\":false}"
+    "{\"id\":\"memo-flow:hook-${hook_stem}\",\"kind\":\"hook_script\",\"target\":\".claude/memo-flow/hooks/${hook_name}\",\"source_checksum\":\"${checksum}\",\"customized\":false}"
 done
 
 # ── write config.json ─────────────────────────────────────────────────────────
 
-config_json="$scripts_dir/config.json"
+config_json="$PROJECT_DIR/.claude/memo-flow/config.json"
 
 if [ ! -f "$config_json" ]; then
   cat > "$config_json" <<'EOF'
@@ -363,33 +345,30 @@ if [ ! -f "$config_json" ]; then
 }
 EOF
 
-  # record as file_written so uninstall removes it
   manifest_append_if_absent "$MANIFEST" \
-    "{\"id\":\"memo-flow:hook-config\",\"kind\":\"file_written\",\"target\":\"scripts/memo-flow/config.json\",\"customized\":false}"
+    "{\"id\":\"memo-flow:hook-config\",\"kind\":\"file_written\",\"target\":\".claude/memo-flow/config.json\",\"customized\":false}"
 fi
 
 # ── add gitignore entries ─────────────────────────────────────────────────────
 
 gitignore="$PROJECT_DIR/.gitignore"
-gitignore_add_line "$gitignore" "scripts/memo-flow/config.json"
-gitignore_add_line "$gitignore" "scripts/memo-flow/*.lock"
+gitignore_add_line "$gitignore" ".claude/memo-flow/config.json"
+gitignore_add_line "$gitignore" ".claude/memo-flow/*.lock"
 
 manifest_append_if_absent "$MANIFEST" \
-  "{\"id\":\"memo-flow:gitignore-hook-config\",\"kind\":\"gitignore_entry\",\"target\":\".gitignore\",\"line\":\"scripts/memo-flow/config.json\",\"customized\":false}"
+  "{\"id\":\"memo-flow:gitignore-hook-config\",\"kind\":\"gitignore_entry\",\"target\":\".gitignore\",\"line\":\".claude/memo-flow/config.json\",\"customized\":false}"
 
 manifest_append_if_absent "$MANIFEST" \
-  "{\"id\":\"memo-flow:gitignore-hook-locks\",\"kind\":\"gitignore_entry\",\"target\":\".gitignore\",\"line\":\"scripts/memo-flow/*.lock\",\"customized\":false}"
+  "{\"id\":\"memo-flow:gitignore-hook-locks\",\"kind\":\"gitignore_entry\",\"target\":\".gitignore\",\"line\":\".claude/memo-flow/*.lock\",\"customized\":false}"
 
 # ── add settings.json entries ─────────────────────────────────────────────────
 
-# skill-leaderboard fires on PostToolUse
-leaderboard_cmd="scripts/memo-flow/skill-leaderboard.sh"
+leaderboard_cmd=".claude/memo-flow/hooks/skill-leaderboard.sh"
 leaderboard_hook="{\"id\":\"memo-flow:skill-leaderboard\",\"command\":\"${leaderboard_cmd}\",\"type\":\"stdin\"}"
 
 "$SETTINGS_SH" insert "$SETTINGS_JSON" "PostToolUse" "" "$leaderboard_hook"
 
-# context-monitor fires on UserPromptSubmit
-monitor_cmd="scripts/memo-flow/context-monitor.sh"
+monitor_cmd=".claude/memo-flow/hooks/context-monitor.sh"
 monitor_hook="{\"id\":\"memo-flow:context-monitor\",\"command\":\"${monitor_cmd}\",\"type\":\"stdin\"}"
 
 "$SETTINGS_SH" insert "$SETTINGS_JSON" "UserPromptSubmit" "" "$monitor_hook"
@@ -408,7 +387,6 @@ manifest_append_if_absent "$MANIFEST" \
 # ── update registry ───────────────────────────────────────────────────────────
 
 if [ -f "$REGISTRY" ]; then
-  # check if project already in registry
   existing=$("$REGISTRY_SH" get "$REGISTRY" "$PROJECT_DIR" 2>/dev/null || echo "")
   if [ -n "$existing" ]; then
     "$REGISTRY_SH" update-tiers "$REGISTRY" "$PROJECT_DIR" '["base","hooks"]'

@@ -71,6 +71,7 @@ import json, os
 data = {
     'schema_version': $SCHEMA_VERSION,
     'memo_flow_version': '$version',
+    'config': {},
     'mutations': []
 }
 with open('$tmpfile', 'w') as f:
