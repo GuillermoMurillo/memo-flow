@@ -25,6 +25,8 @@ If that file is missing, re-run `/setup-memo-flow` and confirm AFK installation 
 
 ## Usage
 
+> The full path `.claude/memo-flow/bin/afk-cook` is intentional — memo-flow doesn't touch your `PATH`. See [Optional shortcuts for afk-cook](../../../../../README.md#optional-shortcuts-for-afk-cook) in the root README for alias, direnv, and symlink recipes.
+
 ```bash
 ./.claude/memo-flow/bin/afk-cook                  # all open ready-for-agent issues
 ./.claude/memo-flow/bin/afk-cook <N>              # one slice (good for first try)
