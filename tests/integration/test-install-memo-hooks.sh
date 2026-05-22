@@ -148,6 +148,46 @@ print(count)
 [[ "$hook_mutations" -ge 2 ]] && ok "hook_script mutations recorded in manifest ($hook_mutations)" || fail "expected >=2 hook_script mutations, got $hook_mutations"
 
 echo ""
+echo "--- wrapper --set updates the real config ---"
+# Stage the install-memo-hooks skill into the project so the wrapper can
+# exec into it (mirrors what `npx skills add` does for consumers).
+mkdir -p "$PROJECT/.claude/skills/install-memo-hooks"
+cp -R "$REPO_ROOT/skills/engineering/install-memo-hooks/." "$PROJECT/.claude/skills/install-memo-hooks/"
+
+# Sanity: real config is currently enabled=true for context-monitor
+real_config="$PROJECT/.claude/memo-flow/config.json"
+before=$(python3 -c "import json; print(json.load(open('$real_config'))['context-monitor']['enabled'])")
+if [[ "$before" != "True" ]]; then
+  fail "fixture precondition: context-monitor.enabled was not True before --set" "got: $before"
+fi
+
+# Run through the wrapper from inside the project (no MEMO_FLOW_CONFIG override)
+set +e
+( cd "$PROJECT" && ./.claude/memo-flow/bin/memo-hooks --set context-monitor=false ) > "$WORK/set.out" 2>&1
+SET_EXIT=$?
+set -e
+
+if [[ $SET_EXIT -eq 0 ]]; then
+  ok "wrapper --set exits 0"
+else
+  fail "wrapper --set exited $SET_EXIT" "$(cat "$WORK/set.out")"
+fi
+
+after=$(python3 -c "import json; print(json.load(open('$real_config'))['context-monitor']['enabled'])")
+if [[ "$after" == "False" ]]; then
+  ok "real config.json updated to enabled=false"
+else
+  fail "real config.json NOT updated" "context-monitor.enabled is still $after; CLI wrote to a different path"
+fi
+
+# Negative: confirm no phantom config was created at the broken default path
+if [[ -e "$PROJECT/scripts/memo-flow/config.json" ]]; then
+  fail "phantom config created at ./scripts/memo-flow/config.json (CLI wrote to wrong path)"
+else
+  ok "no phantom config at ./scripts/memo-flow/config.json"
+fi
+
+echo ""
 echo "--- idempotent re-run ---"
 bash "$ENTRY_SH" \
   --project-dir "$PROJECT" \

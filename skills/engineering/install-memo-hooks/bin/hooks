@@ -6,7 +6,8 @@
 #   hooks --set <hook>=<bool>  non-interactive enable/disable toggle
 #   hooks leaderboard          print top-N skills from skill-usage.json
 #
-# Config location: $MEMO_FLOW_CONFIG (env) or ./scripts/memo-flow/config.json (cwd)
+# Config location: $MEMO_FLOW_CONFIG (env), or resolved from the installed
+#                  bundle path (project root via SCRIPT_DIR), or $PWD-relative.
 # Skill usage:     $MEMO_FLOW_SKILL_USAGE (env) or ~/.claude/memo-flow/skill-usage.json
 
 set -euo pipefail
@@ -23,7 +24,22 @@ if [ ! -f "$HOOK_CONFIG_SH" ]; then
   exit 1
 fi
 
-CONFIG_FILE="${MEMO_FLOW_CONFIG:-./scripts/memo-flow/config.json}"
+# Resolve the default config path. When invoked via the installed wrapper
+# at <project>/.claude/memo-flow/bin/memo-hooks, the wrapper exec's
+# <project>/.claude/skills/install-memo-hooks/bin/hooks, so SCRIPT_DIR is
+# <project>/.claude/skills/install-memo-hooks/bin and the project root is
+# four directories up.
+_default_config() {
+  local candidate="$SCRIPT_DIR/../../../../.claude/memo-flow/config.json"
+  if [ -d "$(dirname "$candidate")" ]; then
+    echo "$candidate"
+    return
+  fi
+  # Fallback: cwd-relative, for dev/test invocations from arbitrary directories.
+  echo "$PWD/.claude/memo-flow/config.json"
+}
+
+CONFIG_FILE="${MEMO_FLOW_CONFIG:-$(_default_config)}"
 SKILL_USAGE="${MEMO_FLOW_SKILL_USAGE:-$HOME/.claude/memo-flow/skill-usage.json}"
 
 # ── leaderboard ───────────────────────────────────────────────────────────────
