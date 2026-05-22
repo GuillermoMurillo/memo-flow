@@ -341,6 +341,25 @@ for hook_src in "$HOOKS_SRC"/*.sh; do
     "{\"id\":\"memo-flow:hook-${hook_stem}\",\"kind\":\"hook_script\",\"target\":\".claude/memo-flow/hooks/${hook_name}\",\"source_checksum\":\"${checksum}\",\"customized\":false}"
 done
 
+# ── install memo-hooks CLI wrapper ────────────────────────────────────────────
+# memo-hooks SKILL.md documents `.claude/memo-flow/bin/memo-hooks` as the CLI.
+# Same pattern as the afk-cook wrapper installed by setup-memo-flow step 6:
+# stable path under .claude/memo-flow/bin/ that delegates to the real binary
+# under .claude/skills/, so updates to the skill flow through automatically.
+
+bin_dir="$PROJECT_DIR/.claude/memo-flow/bin"
+mkdir -p "$bin_dir"
+wrapper="$bin_dir/memo-hooks"
+
+cat > "$wrapper" <<'EOF'
+#!/usr/bin/env bash
+exec "$(dirname "$0")/../../skills/install-memo-hooks/bin/hooks" "$@"
+EOF
+chmod +x "$wrapper"
+
+manifest_append_if_absent "$MANIFEST" \
+  "{\"id\":\"memo-flow:memo-hooks-wrapper\",\"kind\":\"cli_wrapper\",\"target\":\".claude/memo-flow/bin/memo-hooks\",\"customized\":false}"
+
 # ── write config.json ─────────────────────────────────────────────────────────
 
 config_json="$PROJECT_DIR/.claude/memo-flow/config.json"

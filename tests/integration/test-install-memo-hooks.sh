@@ -99,6 +99,45 @@ else
 fi
 
 echo ""
+echo "--- memo-hooks CLI wrapper ---"
+wrapper="$PROJECT/.claude/memo-flow/bin/memo-hooks"
+if [[ -f "$wrapper" ]]; then
+  ok "wrapper installed at .claude/memo-flow/bin/memo-hooks"
+  if [[ -x "$wrapper" ]]; then
+    ok "wrapper is executable"
+  else
+    fail "wrapper not executable"
+  fi
+  # wrapper should exec into the real CLI at .claude/skills/install-memo-hooks/bin/hooks
+  if grep -q 'install-memo-hooks/bin/hooks' "$wrapper"; then
+    ok "wrapper points to real CLI"
+  else
+    fail "wrapper does not reference the install-memo-hooks/bin/hooks CLI" "$(cat "$wrapper")"
+  fi
+else
+  fail "wrapper missing: $wrapper"
+fi
+
+echo ""
+echo "--- memo-hooks CLI wrapper ---"
+wrapper="$PROJECT/.claude/memo-flow/bin/memo-hooks"
+if [[ -f "$wrapper" ]]; then
+  ok "wrapper installed at .claude/memo-flow/bin/memo-hooks"
+  if [[ -x "$wrapper" ]]; then
+    ok "wrapper is executable"
+  else
+    fail "wrapper not executable"
+  fi
+  if grep -q 'install-memo-hooks/bin/hooks' "$wrapper"; then
+    ok "wrapper points to real CLI"
+  else
+    fail "wrapper does not reference the install-memo-hooks/bin/hooks CLI" "$(cat "$wrapper")"
+  fi
+else
+  fail "wrapper missing: $wrapper"
+fi
+
+echo ""
 echo "--- manifest mutations ---"
 hook_mutations=$(python3 -c "
 import json

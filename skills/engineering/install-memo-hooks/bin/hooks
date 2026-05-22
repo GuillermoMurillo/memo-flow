@@ -13,19 +13,13 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# locate hook-config.sh — works from both source tree and installed location
-if [ -f "$SCRIPT_DIR/../../../../scripts/hook-config.sh" ]; then
-  # source tree: skills/engineering/install-memo-hooks/hooks/ → ../../../../scripts/
-  HOOK_CONFIG_SH="$(cd "$SCRIPT_DIR/../../../../scripts" && pwd)/hook-config.sh"
-elif [ -f "$(cd "$SCRIPT_DIR/.." && pwd)/../hook-config.sh" ]; then
-  # installed into scripts/memo-flow/: sibling of scripts/
-  HOOK_CONFIG_SH="$(cd "$SCRIPT_DIR/.." && pwd)/../hook-config.sh"
-else
-  HOOK_CONFIG_SH=""
-fi
+# locate hook-config.sh — lives next to this CLI in the install-memo-hooks
+# bundle. Same path math works for source tree and installed location since
+# both preserve <bundle>/{hooks,modules}/ layout.
+HOOK_CONFIG_SH="$(cd "$SCRIPT_DIR/../modules" 2>/dev/null && pwd)/hook-config.sh"
 
 if [ ! -f "$HOOK_CONFIG_SH" ]; then
-  echo "hooks: hook-config.sh not found (tried $HOOK_CONFIG_SH)" >&2
+  echo "hooks: hook-config.sh not found (looked in $SCRIPT_DIR/../modules)" >&2
   exit 1
 fi
 
