@@ -16,6 +16,9 @@
 #   --bundle-dir <dir>    path to install-memo-hooks skill bundle
 #                         (default: the skill folder containing this script)
 #   --non-interactive     don't prompt; default scope = project
+#   --check-only          report drift / install state without writing anything.
+#                         Used by setup-memo-flow step 7, which is read-only
+#                         for hooks. Implies --non-interactive.
 #
 # Behavior:
 #   - Detects cross-scope double-install and warns loudly (exits 1)
@@ -41,6 +44,7 @@ REGISTRY="$HOME/.claude/memo-flow/registry.json"
 SCOPE=""
 BUNDLE_DIR=""
 NON_INTERACTIVE=false
+CHECK_ONLY=false
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -49,6 +53,7 @@ while [[ $# -gt 0 ]]; do
     --scope)          SCOPE="$2";          shift 2 ;;
     --bundle-dir)     BUNDLE_DIR="$2";     shift 2 ;;
     --non-interactive) NON_INTERACTIVE=true; shift ;;
+    --check-only)     CHECK_ONLY=true; NON_INTERACTIVE=true; shift ;;
     *) echo "install-memo-hooks: unknown flag: $1" >&2; exit 1 ;;
   esac
 done
@@ -303,6 +308,16 @@ if [ "$(_has_hook_mutations)" = "yes" ]; then
 
   echo ""
   echo "install-memo-hooks: done"
+  exit 0
+fi
+
+# ── check-only short-circuit: no install detected ────────────────────────────
+# If we got here under --check-only, _has_hook_mutations was "no" — fresh
+# project, never installed. Report and exit; never proceed to install.
+
+if [ "$CHECK_ONLY" = true ]; then
+  hook_count=$(ls "$HOOKS_SRC"/*.sh 2>/dev/null | wc -l | tr -d ' ')
+  echo "install-memo-hooks: no install detected — $hook_count hook(s) available, run /install-memo-hooks to set up"
   exit 0
 fi
 

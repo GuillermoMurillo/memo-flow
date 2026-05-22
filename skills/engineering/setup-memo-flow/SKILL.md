@@ -208,17 +208,18 @@ If the `afk-cook` skill is not installed in `.claude/skills/`, tell the user the
 
 ### 7. Check for pending hook updates
 
-If `.claude/skills/install-memo-hooks/install-memo-hooks.sh` exists (hooks tier is available), run it in non-interactive mode to check for pending updates:
+If `.claude/skills/install-memo-hooks/install-memo-hooks.sh` exists (hooks tier is available), run it with `--check-only` to inspect state without writing anything:
 
 ```bash
-.claude/skills/install-memo-hooks/install-memo-hooks.sh --non-interactive --scope project 2>/dev/null
+.claude/skills/install-memo-hooks/install-memo-hooks.sh --check-only --scope project 2>/dev/null
 ```
 
 - If it prints "all hooks up to date" — no action needed.
 - If it prints "N hook(s) have updates pending" — relay the message to the user: "Hook updates are pending. Run `/install-memo-hooks` to review them."
+- If it prints "no install detected" — relay to the user: "Hooks tier is available but not installed. Run `/install-memo-hooks` to set it up."
 - If the script does not exist (hooks not installed) — skip this check silently.
 
-**Do not modify any hook files or settings.json.** This step is read-only for hooks.
+**Do not modify any hook files or settings.json.** This step is read-only for hooks. The `--check-only` flag enforces this; do not substitute `--non-interactive`, which still installs.
 
 ### 8. Done
 
