@@ -33,24 +33,21 @@ Two paths depending on whether they've set up before.
 
 ### First run (no device file)
 
-User invoking pager for the first time has not aligned any device.
-Get them onto the small screen first, then fit, then save. Alignment
-makes no sense until they can see the output on the target device.
+User invoking pager for the first time has no saved device.
 
 1. Ask: `what device? (glasses, phone, watch, other)`
-2. Start the stream for that device right away (see below). For
-   glasses, kick off `even-terminal --provider claude` and print the
-   pairing URL. For everything else, tell them to open Claude Code
-   on the device and use Remote Control.
-3. Wait for the user to confirm they are paired and looking at the
-   small screen.
-4. Now run the alignment loop, starting at the default size for that
-   device (7x9 for glasses, 9x12 for phone, 4x6 for watch, otherwise
-   7x9).
-5. When they lock a size, ask for a name (`glasses`, `phone`, `watch`,
-   or custom like `g2-outdoors`) and a label (`Even Realities G2`).
-6. Write `~/.claude/memo-flow/pager-devices.json`. Set `default` to
-   the name they just picked.
+2. Save the default size for that device immediately to
+   `~/.claude/memo-flow/pager-devices.json`. No alignment
+   loop yet. Defaults: 7x9 glasses, 9x12 phone, 4x6 watch.
+3. Start the stream right away (see below). For glasses, kick
+   off `even-terminal --provider claude` and print the pairing
+   URL. For everything else, tell them to open Claude Code on
+   the device and use Remote Control.
+4. Start replying at the saved size.
+
+Alignment is opt-in. If the user later says "too small", "too
+wide", "resize", etc., then enter the alignment loop. Do not
+force alignment on first run.
 
 ### Stream per device
 
