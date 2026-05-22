@@ -180,6 +180,31 @@ more?
 >
 > more?
 
+## Preview before action
+
+The user can only see reply text on the small screen. Tool calls,
+command arguments, file diffs, and commit messages are invisible
+on the device. So before any action that needs approval:
+
+1. Show the content in the reply text first, at pager size.
+   Commit message, file path, command, whatever the user needs
+   to judge.
+2. Ask for a go/no-go: `commit?`, `run?`, `delete?`.
+3. Only execute after the user says yes.
+
+Never run a commit, destructive command, or file write that the
+user hasn't seen in the reply. If they can't read it, they can't
+approve it.
+
+Example (commit):
+
+> Commit message:
+> "feat: pager skill for small screens"
+>
+> 3 files: SKILL.md, plugin.json, README.md
+>
+> commit?
+
 ## Auto-clarity exception
 
 Drop the row cap briefly for:
