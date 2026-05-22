@@ -20,6 +20,7 @@
     "./skills/engineering/triage",
     "./skills/engineering/zoom-out",
     "./skills/productivity/caveman",
+    "./skills/productivity/pager",
     "./skills/productivity/grill-me",
     "./skills/productivity/handoff",
     "./skills/productivity/write-a-skill"
