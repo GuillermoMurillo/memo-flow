@@ -36,7 +36,23 @@ Route based on the output:
 
 Fires when state is `not_installed` — the project has never had hooks installed.
 
-### A1. Run the installer
+### A1. Narrative beat
+
+Emit this orienting prose before doing anything. No `AskUserQuestion` here.
+
+```
+Hooks fire on Claude Code lifecycle events (UserPromptSubmit, PostToolUse, etc.).
+The base tier just installed infrastructure — all hooks are disabled by default.
+You opt in next.
+
+Per ADR-0003 (`docs/adr/0003-consent-gate-when-mutation-not-inert.md`), this
+flow skips a pre-flight gate because the writes are inert until you opt in.
+The opt-in interaction IS the consent moment.
+```
+
+This establishes the same onboarding tone as `/memo-flow`'s narrative beat and names the asymmetry: the gate is skipped because the mutations are inert.
+
+### A2. Run the installer
 
 ```bash
 bash .claude/skills/memo-hooks/install.sh --project-dir "$(pwd)"
@@ -49,30 +65,30 @@ The installer:
 - Registers the project in `~/.claude/memo-flow/registry.json`
 - Sets `FRESH_CONFIG=1` in its output when it just created `config.json` for the first time
 
-When the installer says `all hooks are DISABLED by default`, proceed to A2. Otherwise (re-run over a healthy install) config.json was untouched — jump to [Branch B](#branch-b-day-two-management).
+When the installer says `all hooks are DISABLED by default`, proceed to A3. Otherwise (re-run over a healthy install) config.json was untouched — jump to [Branch B](#branch-b-day-two-management).
 
-### A2. Per-hook opt-in
+### A3. Batched opt-in
 
-Ask one `AskUserQuestion` with `multiSelect: true`. List every available hook with a rich description so the user can decide without reading the docs:
+One `AskUserQuestion` with 2 sub-questions rendered together. Do not split into separate calls.
 
-**Options:**
+**Sub-question 1 — Which hooks to enable? (multiSelect)**
 
-- **`context-monitor`** — Watches your session's token count on every prompt. When you're nearing the context limit, it injects a warning into Claude's context so you can run `/handoff` before reasoning degrades. Modes range from a one-time nudge (`notify-once`) to a full auto-handoff. Default threshold: 99 000 tokens.
+Options:
 
-- **`skill-leaderboard`** — Counts every skill you invoke and writes the totals to `~/.claude/memo-flow/skill-usage.json` after each Skill tool call. Run `memo-hooks leaderboard` any time to see your top skills ranked.
+- **`context-monitor`** — Watches your session's token count on every UserPromptSubmit. When you're nearing the context limit, it injects a warning so you can run `/handoff` before reasoning degrades. Default threshold: 99 000 tokens.
+- **`skill-leaderboard`** — Counts every skill invocation and writes totals to `~/.claude/memo-flow/skill-usage.json` after each Skill tool call. Run `memo-hooks leaderboard` to view.
+- **`none — I'll enable later`** — leaves everything disabled; you can flip individual hooks via `/memo-hooks` Branch B any time.
 
-Always include a "none — I'll enable later" option. No threshold prompt here — 99 000 ships silently; the user can change it from the management menu.
+**Sub-question 2 — If you enable context-monitor, what mode? (single-select)**
 
-### A3. If context-monitor was selected: ask mode
+Always asked, even if `context-monitor` was not selected in sub-question 1. Cost is zero — the mode value is idempotent and ignored when the hook is disabled. This future-proofs the flow if the user enables `context-monitor` later via Branch B.
 
-One follow-up `AskUserQuestion` (single-select) to pick the operating mode:
+Options:
 
-| Mode | Behaviour |
-|---|---|
-| `notify` (default) | Soft reminder to run `/handoff` on every over-threshold turn |
-| `notify-once` | Same copy, but only on the first crossing (uses a sentinel under `~/.claude/memo-flow/state/`) |
-| `nag` | Sharper warning on every turn: "you really should run `/handoff` now" |
-| `auto-handoff` | Stops the agent, calls `/handoff` with inferred intent, tells the user to start fresh |
+- **`notify` (default)** — soft reminder to run `/handoff` on every over-threshold turn
+- **`notify-once`** — same copy, first crossing only (uses a sentinel under `~/.claude/memo-flow/state/`)
+- **`nag`** — sharper warning on every turn
+- **`auto-handoff`** — stops the agent, calls `/handoff` with inferred intent
 
 Deprecated aliases still accepted (emit a stderr warning): `inject-context` → `notify`, `remind-once` → `notify-once`, `remind-until` → `nag`, `auto` → `auto-handoff`.
 
@@ -80,21 +96,39 @@ Deprecated aliases still accepted (emit a stderr warning): `inject-context` → 
 
 Every mutation goes through `memo-hooks --set`. Never edit `config.json` directly.
 
-```bash
-# enable a hook
-.claude/memo-flow/bin/memo-hooks --set context-monitor=true
-.claude/memo-flow/bin/memo-hooks --set skill-leaderboard=true
+Always run all three commands unconditionally — even when `context-monitor` is disabled, set the mode so it's ready when the user enables it later via Branch B.
 
-# set context-monitor mode (only if context-monitor was selected)
-.claude/memo-flow/bin/memo-hooks --set context-monitor.mode=nag
+```bash
+.claude/memo-flow/bin/memo-hooks --set context-monitor=<true|false>
+.claude/memo-flow/bin/memo-hooks --set skill-leaderboard=<true|false>
+.claude/memo-flow/bin/memo-hooks --set context-monitor.mode=<picked-mode>
 ```
 
-### A5. Post-install summary
+### A5. Structured summary
 
-Print what's now enabled, one line per hook. Remind the user of the two paths for future changes:
+Emit this block, substituting `{var}` placeholders:
 
-- From a Claude session: `/memo-hooks`
-- From a terminal: `.claude/memo-flow/bin/memo-hooks --set <hook>=true`
+```
+**Done.** Hooks tier is set up in `{project}`.
+
+**What just changed:**
+- Enabled: {list of enabled hooks}             [or 'No hooks enabled (default disabled).']
+- Mode for context-monitor: {mode}
+- Hook scripts installed at `.claude/memo-flow/hooks/`
+- Config written to `.claude/memo-flow/config.json`
+- Settings entry added to `.claude/settings.json` (fenced)
+- Project registered in `~/.claude/memo-flow/registry.json` (hooks tier)
+
+**Try this next:**
+- `/memo-hooks` — management menu (enable/disable hooks, change modes, view leaderboard)
+- `memo-hooks leaderboard` from a terminal once your skills get used
+
+**Where to learn more:**
+- `.claude/skills/memo-hooks/SKILL.md` — full skill reference
+- `.claude/memo-flow/config.json` — config file (don't edit directly, use `--set`)
+
+Re-run `/memo-hooks` any time to enable/disable hooks, change modes, or view the skill leaderboard.
+```
 
 ---
 
