@@ -1,133 +1,173 @@
 # memo-flow
 
-A spec-driven, slice-based, AFK-friendly workflow for coding agents.
+You want to run multiple coding agents in parallel. You don't want to babysit each one.
 
-The workflow itself is agent-agnostic. Today's implementation ships as Claude Code skills plus a bash runner; the prompt templates are portable and adapt to any agent that accepts a written brief and returns a diff.
+The hard part is not the agent. It's keeping the agent's attention on the spec instead of letting the session accumulate, lose the plot, and start guessing.
 
-## Why
+Skills help. A good `/tdd` or `/diagnose` is real value. But skills are a la carte. You still have to remember which to invoke, manage the session, watch context bleed, and ship one slice at a time from the same terminal.
 
-Most "AI coding" setups drift because the agent runs in one accumulating session and loses the plot. memo-flow avoids that:
+memo-flow turns the skills into a workflow. The spec lives in the issue tracker. Each slice runs in a brand-new agent invocation against that issue body, not against the conversation. Slices ship in dependency order, in parallel if you want. You stop watching the agent. You start directing the queue.
 
-1. **Specs are the source of truth.** Every change starts as a PRD, gets split into vertical slices, and ships one slice at a time. The agent reads the slice, not the conversation.
-2. **Fresh context per slice.** Each slice runs in a brand-new agent invocation. No context drift, no compaction games.
-3. **AFK by default.** Queue a batch of `ready-for-agent` slices and walk away. The runner loops one fresh invocation per slice and commits as it goes.
-4. **TDD discipline inside each slice.** Red, green, refactor, with integration-style tests. Tests survive refactors.
+Built on top of [Matt Pocock's skills](https://github.com/mattpocock/skills), with a runner, hooks, and an installer that enforce the discipline instead of leaving it to your memory.
 
-## What's in this repo
+## What it is
 
-- **Skills** (Claude Code today): `afk-cook`, `tdd`, `triage`, `to-prd`, `to-issues`, `diagnose`, `grill-with-docs`, `improve-codebase-architecture`, `prototype`, `zoom-out`, `setup-memo-flow`, `caveman`, `grill-me`, `handoff`, `write-a-skill`. See [skills/engineering/README.md](skills/engineering/README.md) and [skills/productivity/README.md](skills/productivity/README.md).
-- **AFK runner** (ships as part of the `afk-cook` skill): a bash loop that queues `ready-for-agent` GitHub issues and runs one fresh `claude -p` invocation per slice. Each iteration starts empty; state lives in git, in the issue body, and in `CLAUDE.md`. `/setup-memo-flow` installs a 2-line wrapper at `scripts/afk-cook` that delegates to the real script in `.claude/skills/afk-cook/`. Updates flow through `npx skills@latest update` automatically.
+Claude Code skills + a bash AFK runner + hooks. Vendored from Matt Pocock's upstream and extended with originals for the runner, installer, hooks, and ship workflow.
 
-Skills under `skills/in-progress/` and `skills/deprecated/` are intentionally not listed above and are excluded from `.claude-plugin/plugin.json`. See `docs/adr/0001` and `CONTEXT.md`.
+The workflow itself is portable. The skills are one packaging. See [Other agents](#other-agents) below.
 
-## Limitations
+## Two tiers
 
-The AFK runner (`./scripts/afk-cook`) requires GitHub Issues. It queues work by calling `gh issue list --label ready-for-agent` and does not read the local-markdown tracker convention. If you pick local-markdown during `/setup-memo-flow`, every interactive skill (`/to-prd`, `/to-issues`, `/tdd`, `/triage`, etc.) works fine, but the batch runner stays idle. To use AFK, push to GitHub and re-run `/setup-memo-flow` so the tracker config switches.
+### Tier 1: Skills (always installed)
 
-## Install in a project (Claude Code today)
+The interactive surface. Type `/whatever`, the skill prompts you, you reply.
 
-Two steps: install the skills, then configure them for your repo.
+**Matt's skills (vendored as-is):** `tdd`, `triage`, `to-prd`, `to-issues`, `diagnose`, `grill-with-docs`, `prototype`, `review`, `improve-codebase-architecture`, `zoom-out`, `grill-me`, `handoff`, `write-a-skill`, `caveman`.
 
-### 1. Install the skills
+**My additions on top:**
 
-From the consumer project's root:
+- `/memo-flow`: state-routed installer. Detects whether your project is fresh, healthy, or broken, and routes to the right flow.
+- `/ship`: take a finished branch to an open PR with `Closes #<PRD>` baked in. Runs `/review` as a gate first.
+- `/write-a-hook`: scaffold a new hook (script + config + settings entry + README row, all consistent).
+- `/pager`: portable display mode for small screens (glasses, phone, watch).
+- `/uninstall-memo-flow`, `/uninstall-memo-hooks`: reverse everything cleanly when you want out.
+
+### Tier 2: Automation (opt-in)
+
+The stuff that runs without you typing.
+
+**Hooks.** Enable via `/memo-hooks`. Two hooks ship today:
+
+- `context-monitor`: warns when your session token count nears the smart-zone limit, so you can `/handoff` before reasoning degrades.
+- `skill-leaderboard`: counts which skills you actually invoke. Run `memo-hooks leaderboard` any time.
+
+**AFK runner.** `afk-cook` is a bash loop that queues every `ready-for-agent` GitHub issue and runs one fresh `claude -p` per slice in dependency order. Walk away, come back to shipped commits.
+
+> **The AFK runner is for quick prototyping, not production.** It runs locally with `bypassPermissions` and no container isolation. For production environments or anything with serious blast-radius, use [Sandcastle](https://github.com/mattpocock/sandcastle) instead. Matt's container-isolated AFK runner with proper sandboxing.
+>
+> Note: after June 15, once Claude Code subscriptions are allowed back on other apps, the AFK section will be revamped for more production-like users.
+
+## Install
+
+In your project's root:
 
 ```bash
-cd ~/Projects/my-project
 npx skills@latest add GuillermoMurillo/memo-flow -a claude-code
 ```
 
-This fetches every skill listed in `.claude-plugin/plugin.json` and writes them into `.claude/skills/<skill>/` so the slash commands (`/tdd`, `/triage`, `/to-prd`, ...) become available in Claude Code. The picker lets you deselect any you don't want.
+Then in a Claude Code session:
 
-If you use a different agent (Codex, Cursor, Aider, etc.), swap `-a claude-code` for `-a <your-agent>` or drop the flag entirely to install universally into `.agents/skills/`.
-
-Make sure `/setup-memo-flow` is selected. Step 2 needs it.
-
-### 2. Configure for your repo
-
-```bash
-claude  # start a Claude Code session
-/setup-memo-flow
+```
+/memo-flow
 ```
 
-`/setup-memo-flow` is a prompt-driven skill that asks three questions (issue tracker, triage label vocabulary, domain doc layout) and writes `docs/agents/{issue-tracker,triage-labels,domain}.md` plus an `## Agent skills` block in your `AGENTS.md` or `CLAUDE.md`.
+That sets up `docs/agents/{issue-tracker,triage-labels,domain}.md`, an `## Agent skills` block in your `CLAUDE.md` (or `AGENTS.md`), and the `afk-cook` wrapper at `.claude/memo-flow/bin/afk-cook`. Re-run `/memo-flow` any time to check health or repair drift.
 
-It only writes into the consumer project. It does not modify files in this repo.
+For the optional tier 2 (hooks):
 
-### Updating
+```
+/memo-hooks
+```
+
+To pull updates later:
 
 ```bash
-cd ~/Projects/my-project
 npx skills@latest update
 ```
 
-This refreshes every installed skill to the latest from GitHub. Because `scripts/afk-cook` is a thin wrapper that delegates to `.claude/skills/afk-cook/afk-cook`, updates to the real script and prompt template propagate automatically. No re-copy step.
+## Day-to-day
 
-## Using with other agents
+The skills cover the whole arc, not just the linear path. Use what the moment calls for.
 
-The workflow is the value, the skills are one packaging. To run with a different agent:
-
-- Take `scripts/slice-prompt.md` as your per-slice brief template.
-- Replace the `claude -p` invocation in `scripts/afk-cook` with your agent's headless invocation (`codex exec`, `aider --message`, etc.).
-- Adapt the slash-command skills (`/to-prd`, `/to-issues`, `/triage`) into whatever brief format your agent expects. The logic in each `SKILL.md` is the spec; the format is yours.
-
-Ports of `afk-cook` and the templates for other agents are welcome.
-
-## Day-to-day flow
+### Plan
 
 ```
 idea
-  /to-prd                turn the conversation into a PRD
-PRD (issue on tracker)
-  /to-issues             break the PRD into vertical slices, publish as issues
-ready-for-agent + ready-for-human issues
-  /tdd                   RED, GREEN, REFACTOR on one slice at a time
+  /grill-me                stress-test the idea before writing anything
+  /prototype               spike if direction is uncertain
+  /to-prd                  once it's clear, turn the conversation into a PRD
+PRD on the tracker
+  /grill-with-docs         stress-test against CONTEXT.md and the ADRs
+  /to-issues               break the PRD into vertical slices (one issue each)
+```
+
+### Build
+
+```
+ready-for-agent slices
+  afk-cook                          batch overnight, unattended
   or
-  ./scripts/afk-cook     overnight, unattended, queue of AFK slices
-                         (installed by /setup-memo-flow; see the afk-cook skill)
-shipped
+  /tdd                              one slice at a time, interactive (red, green, refactor)
 ```
 
-## Optional shortcuts for afk-cook
+### When stuck
 
-memo-flow installs nothing outside `.claude/memo-flow/`. The wrapper lives at `.claude/memo-flow/bin/afk-cook` and that path is intentional — it avoids squatting the consumer's `PATH` or adding files to the project root. Shortcuts are the consumer's choice and live in the consumer's tree.
-
-Three opt-in recipes:
-
-### Shell alias
-
-Add to `.zshrc` or `.bashrc`:
-
-```bash
-alias afk-cook='.claude/memo-flow/bin/afk-cook'
+```
+/diagnose                  reproduce, minimise, hypothesise, fix
+/zoom-out                  step back if buried in the weeds
+/improve-codebase-architecture    find deepening opportunities in the code
 ```
 
-Works from any directory inside the project once the shell is reloaded. The alias resolves relative to wherever you invoke it, so run it from the project root.
+### Ship
 
-### direnv
-
-If the project uses [direnv](https://direnv.net/), add to `.envrc`:
-
-```bash
-PATH_add .claude/memo-flow/bin
+```
+finished branch
+  /review                  two-axis (Standards + Spec) review against main
+  /ship                    open a PR that closes the parent PRD on merge
 ```
 
-`direnv allow` once, then `afk-cook` is on your `PATH` whenever you enter the project directory. The `.envrc` file is the consumer's; add it to `.gitignore` or commit it — your call.
+### Maintain
 
-### Symlink
-
-One-time setup at the project root:
-
-```bash
-ln -s .claude/memo-flow/bin/afk-cook afk-cook
+```
+/triage                    move issues through needs-triage, needs-info, ready-for-agent, ready-for-human, wontfix
+/memo-flow                 re-run any time to check health, repair drift, or set up a new project
+/memo-hooks                manage the hooks tier (context-monitor, skill-leaderboard)
+/handoff                   end-of-session note (to a mktemp path) so a fresh session can resume
 ```
 
-Then invoke as `./afk-cook`. The symlink is the consumer's file — it doesn't belong in this repo. Add it to the consumer project's `.gitignore` if it shouldn't be committed.
+### Authoring more
 
-## Attribution
+```
+/write-a-skill             scaffold a new skill (vendored or original)
+/write-a-hook              scaffold a new bundle hook (script + config + settings entry + README row, consistent)
+```
 
-Some skills under `skills/engineering/` and `skills/productivity/` are vendored from third-party MIT-licensed sources. Each vendored `SKILL.md` carries a one-line attribution header. Full upstream license text is in `THIRD_PARTY_NOTICES.md`.
+### Utility
 
-## License
+```
+/caveman                   ultra-terse reply mode when the context window is tight
+/pager                     portable display mode for small screens (glasses, phone, watch)
+```
 
-MIT. See `LICENSE`.
+### Real flow from this repo
+
+The PR that introduced this README:
+
+```
+1. /grill-with-docs        10-question design tree on install-flow UX, ~30 min
+2. /to-issues              published 2 slices (#45 + #46) ready-for-agent
+3. afk-cook                shipped both slices in fresh contexts, ~30 min unattended
+4. /review                 caught two stale docs and a stylistic nit
+5. /ship                   opened PR with `Closes #2 + #29 + #38`
+```
+
+Another typical loop, single slice (Matt's pattern, no PRD needed):
+
+```
+1. file the issue          one paragraph + acceptance criteria
+2. /triage                 label ready-for-agent or ready-for-human
+3. afk-cook 47             (one number) or /tdd if HITL
+4. shipped via afk-cook or follow-up /ship
+```
+
+## Other agents
+
+The workflow is portable. The skills are one packaging. To run with another agent: take `slice-prompt.md` from the afk-cook skill as your per-slice brief, swap `claude -p` in `afk-cook` for your agent's headless mode (`codex exec`, `aider --message`, etc.), and adapt the slash-command skills into whatever brief format your agent expects. Each `SKILL.md` is the spec; the packaging is yours.
+
+## Limitations
+
+`afk-cook` requires GitHub Issues. If you pick the local-markdown tracker during install, every interactive skill works, but the AFK runner stays idle. Push to GitHub and re-run `/memo-flow` to switch.
+
+## Attribution and license
+
+Vendored skills are derived from [mattpocock/skills](https://github.com/mattpocock/skills) (MIT). Per-skill upstream sources, modifications, and the full license text live in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). My additions are original to this repo. License: MIT.
