@@ -4,8 +4,8 @@ Controlled vocabulary for this repo. When a term here conflicts with a term used
 
 ## Skill provenance
 
-- **Vendored skill**: a `SKILL.md` derived from an upstream MIT-licensed source. Carries an HTML attribution comment immediately below the YAML frontmatter. Upstream source recorded in `THIRD_PARTY_NOTICES.md`.
-- **Original skill**: a `SKILL.md` authored in this repo. No attribution header.
+- **Vendored skill**: a `SKILL.md` derived from an upstream MIT-licensed source. Upstream source and per-skill modifications are recorded in `THIRD_PARTY_NOTICES.md`, which is the single source of attribution — no per-file headers in vendored SKILL.md files.
+- **Original skill**: a `SKILL.md` authored in this repo.
 - **Renamed vendored skill**: a vendored skill whose `name:` differs from the upstream original. Renames are recorded in `THIRD_PARTY_NOTICES.md` under "Modifications".
 
 ## Skill buckets
