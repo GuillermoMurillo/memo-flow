@@ -220,10 +220,20 @@ Create `<project-root>/.claude/memo-flow/bin/` if it doesn't exist. Write `<proj
 
 ```bash
 #!/usr/bin/env bash
-exec "$(dirname "$0")/../../../skills/afk-cook/afk-cook" "$@"
+exec "$(dirname "$0")/../../skills/afk-cook/afk-cook" "$@"
 ```
 
+The relative path is `../../skills/afk-cook/afk-cook` — two levels up from `.claude/memo-flow/bin/` to reach `.claude/`, then down into `skills/afk-cook/`. Get this depth right or the wrapper exec's a nonexistent path.
+
 Make it executable: `chmod +x <project-root>/.claude/memo-flow/bin/afk-cook`.
+
+Smoke-test the wrapper before claiming Section A6 done. Confirm the symlink-equivalent resolves:
+
+```bash
+test -x "$(dirname "<project-root>/.claude/memo-flow/bin/afk-cook")/../../skills/afk-cook/afk-cook" && echo "wrapper target reachable"
+```
+
+If the test fails, the depth count is wrong — recount `..` levels from the wrapper's directory to `.claude/`.
 
 Do NOT copy `slice-prompt.md` into the wrapper directory. The real `afk-cook` script in `.claude/skills/afk-cook/` already reads its prompt template from its own sibling location, so the wrapper inherits the latest template automatically.
 
