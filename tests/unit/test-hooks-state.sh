@@ -187,6 +187,101 @@ result="$(bash "$STATE_SH" detect "$CONFIG" "$REGISTRY" "$OTHER_PATH" 2>/dev/nul
   && ok "works with arbitrary project path" \
   || fail "arbitrary project path" "got '$result'"
 
+# ── audit: schema checks on settings.json ────────────────────────────────────
+
+echo ""
+echo "--- audit ---"
+
+SETTINGS="$WORK/settings.json"
+REAL_HOOK="$WORK/hooks/context-monitor.sh"
+mkdir -p "$WORK/hooks"
+echo "#!/bin/bash" > "$REAL_HOOK"
+
+audit() {
+  bash "$STATE_SH" audit "$SETTINGS" "$WORK"
+}
+
+# no settings file → empty findings
+rm -f "$SETTINGS"
+result="$(audit 2>/dev/null)"
+[[ "$result" == "[]" ]] \
+  && ok "no settings file → empty findings" \
+  || fail "no settings file" "got '$result'"
+
+# settings with no memo-flow entries → empty findings
+python3 -c "
+import json
+data = {'hooks': {'UserPromptSubmit': [{'matcher': '', 'hooks': [{'id': 'other:thing', 'type': 'command', 'command': 'foo.sh'}]}]}}
+with open('$SETTINGS', 'w') as f:
+    json.dump(data, f)
+    f.write('\n')
+"
+result="$(audit 2>/dev/null)"
+[[ "$result" == "[]" ]] \
+  && ok "no memo-flow entries → empty findings" \
+  || fail "no memo-flow entries" "got '$result'"
+
+# entry with type=stdin → finding
+python3 -c "
+import json
+data = {'hooks': {'UserPromptSubmit': [{'matcher': '', 'hooks': [{'id': 'memo-flow:context-monitor', 'type': 'stdin', 'command': 'hooks/context-monitor.sh'}]}]}}
+with open('$SETTINGS', 'w') as f:
+    json.dump(data, f)
+    f.write('\n')
+"
+result="$(audit 2>/dev/null)"
+entry_count=$(python3 -c "import json,sys; print(len(json.loads(sys.argv[1])))" "$result")
+[[ "$entry_count" -eq 1 ]] \
+  && ok "type=stdin → one finding" \
+  || fail "type=stdin" "got $entry_count findings: $result"
+echo "$result" | python3 -c "import json,sys; f=json.load(sys.stdin); print(f[0]['entry'])" | grep -q "memo-flow:context-monitor" \
+  && ok "finding names the offending entry" \
+  || fail "finding entry wrong" "got $result"
+
+# entry with missing command path → finding
+python3 -c "
+import json
+data = {'hooks': {'UserPromptSubmit': [{'matcher': '', 'hooks': [{'id': 'memo-flow:context-monitor', 'type': 'command', 'command': 'hooks/nonexistent.sh'}]}]}}
+with open('$SETTINGS', 'w') as f:
+    json.dump(data, f)
+    f.write('\n')
+"
+result="$(audit 2>/dev/null)"
+entry_count=$(python3 -c "import json,sys; print(len(json.loads(sys.argv[1])))" "$result")
+[[ "$entry_count" -eq 1 ]] \
+  && ok "missing command path → one finding" \
+  || fail "missing command path" "got $entry_count findings: $result"
+
+# entry with correct type and existing path → no finding
+python3 -c "
+import json
+data = {'hooks': {'UserPromptSubmit': [{'matcher': '', 'hooks': [{'id': 'memo-flow:context-monitor', 'type': 'command', 'command': 'hooks/context-monitor.sh'}]}]}}
+with open('$SETTINGS', 'w') as f:
+    json.dump(data, f)
+    f.write('\n')
+"
+result="$(audit 2>/dev/null)"
+[[ "$result" == "[]" ]] \
+  && ok "correct entry → no finding" \
+  || fail "correct entry" "got '$result'"
+
+# multiple entries: only broken ones reported
+python3 -c "
+import json
+data = {'hooks': {'UserPromptSubmit': [{'matcher': '', 'hooks': [
+    {'id': 'memo-flow:context-monitor', 'type': 'command', 'command': 'hooks/context-monitor.sh'},
+    {'id': 'memo-flow:skill-leaderboard', 'type': 'stdin', 'command': 'hooks/context-monitor.sh'}
+]}]}}
+with open('$SETTINGS', 'w') as f:
+    json.dump(data, f)
+    f.write('\n')
+"
+result="$(audit 2>/dev/null)"
+entry_count=$(python3 -c "import json,sys; print(len(json.loads(sys.argv[1])))" "$result")
+[[ "$entry_count" -eq 1 ]] \
+  && ok "mixed entries: only broken one reported" \
+  || fail "mixed entries" "got $entry_count findings: $result"
+
 echo ""
 echo "──────────────────────────────────────────"
 echo "PASS: $PASS  FAIL: $FAIL"

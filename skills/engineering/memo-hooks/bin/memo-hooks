@@ -19,6 +19,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # bundle. Same path math works for source tree and installed location since
 # both preserve <bundle>/{hooks,modules}/ layout.
 HOOK_CONFIG_SH="$(cd "$SCRIPT_DIR/../modules" 2>/dev/null && pwd)/hook-config.sh"
+STATE_SH="$(cd "$SCRIPT_DIR/../modules" 2>/dev/null && pwd)/state.sh"
 
 if [ ! -f "$HOOK_CONFIG_SH" ]; then
   echo "hooks: hook-config.sh not found (looked in $SCRIPT_DIR/../modules)" >&2
@@ -42,6 +43,20 @@ _default_config() {
 
 CONFIG_FILE="${MEMO_FLOW_CONFIG:-$(_default_config)}"
 SKILL_USAGE="${MEMO_FLOW_SKILL_USAGE:-$HOME/.claude/memo-flow/skill-usage.json}"
+
+# Resolve project scope settings.json. CONFIG_FILE is at
+# <project>/.claude/memo-flow/config.json — project root is three dirs up.
+_default_settings() {
+  local proj
+  proj="$(cd "$(dirname "$CONFIG_FILE")/../../.." 2>/dev/null && pwd)"
+  if [ -n "$proj" ]; then
+    echo "$proj/.claude/settings.json"
+    return
+  fi
+  echo "$PWD/.claude/settings.json"
+}
+
+SETTINGS_FILE="${MEMO_FLOW_SETTINGS:-$(_default_settings)}"
 
 # ── leaderboard ───────────────────────────────────────────────────────────────
 
@@ -243,6 +258,45 @@ _hook_event() {
   esac
 }
 
+cmd_repair_settings() {
+  if [ ! -f "$SETTINGS_FILE" ]; then
+    return 0
+  fi
+
+  python3 - "$SETTINGS_FILE" <<'PYEOF'
+import json, os, sys, tempfile
+
+settings_file = sys.argv[1]
+
+try:
+    data = json.load(open(settings_file))
+except Exception as e:
+    print("memo-hooks: could not read settings file: {}".format(e), file=sys.stderr)
+    sys.exit(1)
+
+changed = 0
+for event_groups in data.get("hooks", {}).values():
+    for group in event_groups:
+        for h in group.get("hooks", []):
+            if h.get("id", "").startswith("memo-flow:") and h.get("type") == "stdin":
+                h["type"] = "command"
+                changed += 1
+
+if changed > 0:
+    tmp_dir = os.path.dirname(settings_file)
+    fd, tmppath = tempfile.mkstemp(dir=tmp_dir, prefix=".settings-repair-", suffix=".json")
+    try:
+        with os.fdopen(fd, "w") as f:
+            json.dump(data, f, indent=2)
+            f.write("\n")
+        os.rename(tmppath, settings_file)
+    except Exception:
+        os.unlink(tmppath)
+        raise
+    print("memo-hooks: repaired {} settings entries (type=stdin → type=command)".format(changed))
+PYEOF
+}
+
 cmd_status() {
   local config_json
   config_json=$("$HOOK_CONFIG_SH" get-all "$CONFIG_FILE")
@@ -299,6 +353,26 @@ for event in ordered_events + extra_events:
     for name, cfg in by_event[event]:
         print(format_hook(name, cfg))
 PYEOF
+
+  # schema audit: surface any broken settings.json entries
+  if [ -f "$STATE_SH" ] && [ -f "$SETTINGS_FILE" ]; then
+    local audit_json project_path
+    project_path="$(cd "$(dirname "$CONFIG_FILE")/../../.." 2>/dev/null && pwd)"
+    audit_json="$(bash "$STATE_SH" audit "$SETTINGS_FILE" "${project_path:-$PWD}" 2>/dev/null || echo "[]")"
+    local finding_count
+    finding_count="$(python3 -c "import json,sys; print(len(json.loads(sys.argv[1])))" "$audit_json" 2>/dev/null || echo "0")"
+    if [ "$finding_count" -gt 0 ]; then
+      echo ""
+      echo "schema issues ($finding_count):"
+      python3 - "$audit_json" <<'PYEOF'
+import json, sys
+for f in json.loads(sys.argv[1]):
+    print("  {}: {}".format(f["entry"], f["problem"]))
+PYEOF
+      echo ""
+      echo "run 'memo-hooks --repair-settings' to fix type errors"
+    fi
+  fi
 }
 
 # ── dispatch ──────────────────────────────────────────────────────────────────
@@ -318,6 +392,9 @@ case "${1:-}" in
       exit 1
     fi
     cmd_set "$1"
+    ;;
+  --repair-settings)
+    cmd_repair_settings
     ;;
   "")
     cmd_tui

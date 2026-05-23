@@ -71,6 +71,58 @@ else:
 PYEOF
     ;;
 
+  audit)
+    settings_file="${2:-}"
+    project_path="${3:-}"
+
+    if [ -z "$settings_file" ] || [ -z "$project_path" ]; then
+      echo "usage: state.sh audit <settings_file> <project_path>" >&2
+      exit 1
+    fi
+
+    python3 - "$settings_file" "$project_path" <<'PYEOF'
+import json, os, sys
+
+settings_file, project_path = sys.argv[1], sys.argv[2]
+
+findings = []
+
+if not os.path.isfile(settings_file):
+    print("[]")
+    sys.exit(0)
+
+try:
+    data = json.load(open(settings_file))
+except Exception:
+    print("[]")
+    sys.exit(0)
+
+for event_groups in data.get("hooks", {}).values():
+    for group in event_groups:
+        for h in group.get("hooks", []):
+            entry_id = h.get("id", "")
+            if not entry_id.startswith("memo-flow:"):
+                continue
+            # check type field
+            if h.get("type") != "command":
+                findings.append({
+                    "entry": entry_id,
+                    "problem": "type is '{}', expected 'command'".format(h.get("type", "(missing)"))
+                })
+            # check command path exists on disk
+            cmd = h.get("command", "")
+            if cmd:
+                full_path = os.path.join(project_path, cmd) if not os.path.isabs(cmd) else cmd
+                if not os.path.isfile(full_path):
+                    findings.append({
+                        "entry": entry_id,
+                        "problem": "command not found: {}".format(cmd)
+                    })
+
+print(json.dumps(findings))
+PYEOF
+    ;;
+
   *)
     echo "state: unknown command '$cmd'" >&2
     exit 1

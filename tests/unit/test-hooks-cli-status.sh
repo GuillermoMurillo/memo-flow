@@ -143,6 +143,110 @@ rc=$?
   && ok "missing config exits 0 (fail-open)" \
   || fail "missing config exited $rc"
 
+# ── audit: status shows schema warning when settings.json has broken entries ──
+
+echo ""
+echo "--- status with broken settings (type=stdin) ---"
+
+SETTINGS="$WORK/settings.json"
+
+run_status_with_settings() {
+  MEMO_FLOW_CONFIG="$CFG" MEMO_FLOW_SETTINGS="$SETTINGS" "$CLI" status 2>/dev/null
+}
+
+python3 - "$SETTINGS" <<'PYEOF'
+import json, sys
+path = sys.argv[1]
+data = {"hooks": {"UserPromptSubmit": [{"matcher": "", "hooks": [
+    {"id": "memo-flow:context-monitor", "type": "stdin", "command": ".claude/memo-flow/hooks/context-monitor.sh"}
+]}]}}
+with open(path, "w") as f:
+    json.dump(data, f, indent=2)
+    f.write("\n")
+PYEOF
+
+write_config true false
+out="$(run_status_with_settings)"
+echo "$out" | grep -qiE "schema|broken|stdin|repair" \
+  && ok "status warns about schema issue when type=stdin" \
+  || fail "status should warn about schema issues" "got: $out"
+
+# ── audit: status clean when no broken entries ────────────────────────────────
+
+echo ""
+echo "--- status with clean settings ---"
+
+python3 - "$SETTINGS" <<'PYEOF'
+import json, sys
+path = sys.argv[1]
+data = {"hooks": {}}
+with open(path, "w") as f:
+    json.dump(data, f, indent=2)
+    f.write("\n")
+PYEOF
+
+write_config true false
+out="$(run_status_with_settings)"
+echo "$out" | grep -qiE "schema|broken|stdin" \
+  && fail "status should not warn when settings are clean" "got: $out" \
+  || ok "clean settings: no schema warning in status"
+
+# ── --repair-settings: fixes type=stdin entries ───────────────────────────────
+
+echo ""
+echo "--- --repair-settings ---"
+
+python3 - "$SETTINGS" <<'PYEOF'
+import json, sys
+path = sys.argv[1]
+data = {"hooks": {"UserPromptSubmit": [{"matcher": "", "hooks": [
+    {"id": "memo-flow:context-monitor", "type": "stdin", "command": ".claude/memo-flow/hooks/context-monitor.sh"}
+]}]}}
+with open(path, "w") as f:
+    json.dump(data, f, indent=2)
+    f.write("\n")
+PYEOF
+
+MEMO_FLOW_CONFIG="$CFG" MEMO_FLOW_SETTINGS="$SETTINGS" "$CLI" --repair-settings >/dev/null 2>&1
+rc=$?
+[ "$rc" -eq 0 ] \
+  && ok "--repair-settings exits 0" \
+  || fail "--repair-settings exited $rc"
+
+remaining_stdin=$(python3 -c "
+import json
+data = json.load(open('$SETTINGS'))
+n = 0
+for eg in data.get('hooks', {}).values():
+    for g in eg:
+        for h in g.get('hooks', []):
+            if h.get('id', '').startswith('memo-flow:') and h.get('type') == 'stdin':
+                n += 1
+print(n)
+")
+[ "$remaining_stdin" -eq 0 ] \
+  && ok "--repair-settings fixes type=stdin entries" \
+  || fail "--repair-settings did not fix all entries" "remaining: $remaining_stdin"
+
+# --repair-settings is a no-op when settings are clean
+python3 - "$SETTINGS" <<'PYEOF'
+import json, sys
+path = sys.argv[1]
+data = {"hooks": {"UserPromptSubmit": [{"matcher": "", "hooks": [
+    {"id": "memo-flow:context-monitor", "type": "command", "command": ".claude/memo-flow/hooks/context-monitor.sh"}
+]}]}}
+with open(path, "w") as f:
+    json.dump(data, f, indent=2)
+    f.write("\n")
+PYEOF
+
+SETTINGS_BEFORE=$(sha256sum "$SETTINGS" | awk '{print $1}')
+MEMO_FLOW_CONFIG="$CFG" MEMO_FLOW_SETTINGS="$SETTINGS" "$CLI" --repair-settings >/dev/null 2>&1
+SETTINGS_AFTER=$(sha256sum "$SETTINGS" | awk '{print $1}')
+[ "$SETTINGS_BEFORE" = "$SETTINGS_AFTER" ] \
+  && ok "--repair-settings is a no-op when settings are clean" \
+  || fail "--repair-settings mutated clean settings"
+
 echo ""
 echo "──────────────────────────────────────────"
 echo "PASS: $PASS  FAIL: $FAIL"
