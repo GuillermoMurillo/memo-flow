@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Tests: skills/engineering/install-memo-hooks/hooks/context-monitor.sh
+# Tests: skills/engineering/memo-hooks/hooks/context-monitor.sh
 #
 # Covers mode dispatch — in particular the `inject-context` mode that emits
 # the warning to STDOUT so Claude Code injects it into the model's context
@@ -8,7 +8,7 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-HOOK="$REPO_ROOT/skills/engineering/install-memo-hooks/hooks/context-monitor.sh"
+HOOK="$REPO_ROOT/skills/engineering/memo-hooks/hooks/context-monitor.sh"
 
 PASS=0
 FAIL=0

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Tests: skills/engineering/install-memo-hooks/bin/hooks --set
+# Tests: skills/engineering/memo-hooks/bin/memo-hooks --set
 #
 # Covers the extended --set syntax that supports arbitrary scalar values via
 # <hook>.<field>=<value>, while keeping back-compat for the bool toggle
@@ -11,7 +11,7 @@ set -uo pipefail
 # ok/fail helpers track state explicitly.
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-CLI="$REPO_ROOT/skills/engineering/install-memo-hooks/bin/hooks"
+CLI="$REPO_ROOT/skills/engineering/memo-hooks/bin/memo-hooks"
 
 PASS=0
 FAIL=0

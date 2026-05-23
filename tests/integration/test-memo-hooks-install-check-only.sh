@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Tests: skills/engineering/install-memo-hooks/install-memo-hooks.sh
+# Tests: skills/engineering/memo-hooks/install.sh
 #
 # Covers: --check-only flag. Script must report pending hook updates
 # without mutating the project tree. Used by setup-memo-flow step 7,
@@ -8,7 +8,7 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-ENTRY_SH="$REPO_ROOT/skills/engineering/install-memo-hooks/install-memo-hooks.sh"
+ENTRY_SH="$REPO_ROOT/skills/engineering/memo-hooks/install.sh"
 
 PASS=0
 FAIL=0

@@ -225,18 +225,18 @@ fi
 
 echo ""
 
-# ── simulate /install-memo-hooks (non-interactive) ───────────────────────────
+# ── simulate /memo-hooks install (non-interactive) ───────────────────────────
 #
 # Run the entry script from the consumer install non-interactively.
 # Per ADR 0002, the entry script lives at:
-#   .claude/skills/install-memo-hooks/install-memo-hooks.sh
+#   .claude/skills/memo-hooks/install.sh
 # This mirrors the real user journey: after /setup-memo-flow, the user runs
-# /install-memo-hooks to install the hooks tier.
+# /memo-hooks to install the hooks tier.
 
-INSTALL_HOOKS_SH="$SCRATCH/.claude/skills/install-memo-hooks/install-memo-hooks.sh"
+INSTALL_HOOKS_SH="$SCRATCH/.claude/skills/memo-hooks/install.sh"
 
 if [[ -f "$INSTALL_HOOKS_SH" ]] && [[ -f "$MANIFEST_FILE" ]]; then
-  echo "--- simulating /install-memo-hooks ---"
+  echo "--- simulating /memo-hooks install ---"
   chmod +x "$INSTALL_HOOKS_SH"
   bash "$INSTALL_HOOKS_SH" \
     --non-interactive \
@@ -261,7 +261,7 @@ for hook in context-monitor.sh skill-leaderboard.sh; do
   else
     fail \
       "hook script missing: .claude/memo-flow/hooks/$hook" \
-      "install-memo-hooks must copy hook scripts to .claude/memo-flow/hooks/;
+      "memo-hooks/install.sh must copy hook scripts to .claude/memo-flow/hooks/;
         currently the entry script and modules are absent from the consumer install"
   fi
 done

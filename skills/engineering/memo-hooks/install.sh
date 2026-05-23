@@ -353,7 +353,7 @@ wrapper="$bin_dir/memo-hooks"
 
 cat > "$wrapper" <<'EOF'
 #!/usr/bin/env bash
-exec "$(dirname "$0")/../../skills/install-memo-hooks/bin/hooks" "$@"
+exec "$(dirname "$0")/../../skills/memo-hooks/bin/memo-hooks" "$@"
 EOF
 chmod +x "$wrapper"
 
@@ -365,15 +365,19 @@ manifest_append_if_absent "$MANIFEST" \
 config_json="$PROJECT_DIR/.claude/memo-flow/config.json"
 
 if [ ! -f "$config_json" ]; then
+  # All hooks ship disabled on a fresh install — users opt in per hook via
+  # /memo-hooks (Claude session) or `memo-hooks --set <hook>=true` (terminal).
+  # Existing installs are untouched: this block only fires when config.json
+  # is missing.
   cat > "$config_json" <<'EOF'
 {
   "context-monitor": {
-    "enabled": true,
+    "enabled": false,
     "threshold": 99000,
     "mode": "notify"
   },
   "skill-leaderboard": {
-    "enabled": true,
+    "enabled": false,
     "output_file": "~/.claude/memo-flow/skill-usage.json"
   }
 }
@@ -381,6 +385,8 @@ EOF
 
   manifest_append_if_absent "$MANIFEST" \
     "{\"id\":\"memo-flow:hook-config\",\"kind\":\"file_written\",\"target\":\".claude/memo-flow/config.json\",\"customized\":false}"
+
+  FRESH_CONFIG=1
 fi
 
 # ── add gitignore entries ─────────────────────────────────────────────────────
@@ -432,3 +438,9 @@ else
 fi
 
 echo "install-memo-hooks: done — hooks installed at $SCOPE scope in $PROJECT_DIR"
+
+if [ "${FRESH_CONFIG:-0}" = "1" ]; then
+  echo "install-memo-hooks: all hooks are DISABLED by default — opt in per hook:"
+  echo "  • from a Claude session: run /memo-hooks"
+  echo "  • from a terminal:       .claude/memo-flow/bin/memo-hooks --set <hook>=true"
+fi

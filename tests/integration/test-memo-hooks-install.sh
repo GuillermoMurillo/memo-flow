@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Tests: skills/engineering/install-memo-hooks/install-memo-hooks.sh
+# Tests: skills/engineering/memo-hooks/install.sh
 #
 # Covers: non-interactive install into a fresh project dir — hook scripts
 # copied, config.json written, settings.json patched, manifest updated.
@@ -7,7 +7,7 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-ENTRY_SH="$REPO_ROOT/skills/engineering/install-memo-hooks/install-memo-hooks.sh"
+ENTRY_SH="$REPO_ROOT/skills/engineering/memo-hooks/install.sh"
 
 PASS=0
 FAIL=0
@@ -108,11 +108,11 @@ if [[ -f "$wrapper" ]]; then
   else
     fail "wrapper not executable"
   fi
-  # wrapper should exec into the real CLI at .claude/skills/install-memo-hooks/bin/hooks
-  if grep -q 'install-memo-hooks/bin/hooks' "$wrapper"; then
+  # wrapper should exec into the real CLI at .claude/skills/memo-hooks/bin/memo-hooks
+  if grep -q 'memo-hooks/bin/memo-hooks' "$wrapper"; then
     ok "wrapper points to real CLI"
   else
-    fail "wrapper does not reference the install-memo-hooks/bin/hooks CLI" "$(cat "$wrapper")"
+    fail "wrapper does not reference the memo-hooks/bin/memo-hooks CLI" "$(cat "$wrapper")"
   fi
 else
   fail "wrapper missing: $wrapper"
@@ -128,10 +128,10 @@ if [[ -f "$wrapper" ]]; then
   else
     fail "wrapper not executable"
   fi
-  if grep -q 'install-memo-hooks/bin/hooks' "$wrapper"; then
+  if grep -q 'memo-hooks/bin/memo-hooks' "$wrapper"; then
     ok "wrapper points to real CLI"
   else
-    fail "wrapper does not reference the install-memo-hooks/bin/hooks CLI" "$(cat "$wrapper")"
+    fail "wrapper does not reference the memo-hooks/bin/memo-hooks CLI" "$(cat "$wrapper")"
   fi
 else
   fail "wrapper missing: $wrapper"
@@ -149,21 +149,22 @@ print(count)
 
 echo ""
 echo "--- wrapper --set updates the real config ---"
-# Stage the install-memo-hooks skill into the project so the wrapper can
+# Stage the memo-hooks skill into the project so the wrapper can
 # exec into it (mirrors what `npx skills add` does for consumers).
-mkdir -p "$PROJECT/.claude/skills/install-memo-hooks"
-cp -R "$REPO_ROOT/skills/engineering/install-memo-hooks/." "$PROJECT/.claude/skills/install-memo-hooks/"
+mkdir -p "$PROJECT/.claude/skills/memo-hooks"
+cp -R "$REPO_ROOT/skills/engineering/memo-hooks/." "$PROJECT/.claude/skills/memo-hooks/"
 
-# Sanity: real config is currently enabled=true for context-monitor
+# Sanity: fresh installs ship with all hooks DISABLED (users opt in).
 real_config="$PROJECT/.claude/memo-flow/config.json"
 before=$(python3 -c "import json; print(json.load(open('$real_config'))['context-monitor']['enabled'])")
-if [[ "$before" != "True" ]]; then
-  fail "fixture precondition: context-monitor.enabled was not True before --set" "got: $before"
+if [[ "$before" != "False" ]]; then
+  fail "fixture precondition: context-monitor.enabled was not False on fresh install" "got: $before"
 fi
 
-# Run through the wrapper from inside the project (no MEMO_FLOW_CONFIG override)
+# Run through the wrapper from inside the project (no MEMO_FLOW_CONFIG override).
+# This time we flip ON, since the install default is now off.
 set +e
-( cd "$PROJECT" && ./.claude/memo-flow/bin/memo-hooks --set context-monitor=false ) > "$WORK/set.out" 2>&1
+( cd "$PROJECT" && ./.claude/memo-flow/bin/memo-hooks --set context-monitor=true ) > "$WORK/set.out" 2>&1
 SET_EXIT=$?
 set -e
 
@@ -174,8 +175,8 @@ else
 fi
 
 after=$(python3 -c "import json; print(json.load(open('$real_config'))['context-monitor']['enabled'])")
-if [[ "$after" == "False" ]]; then
-  ok "real config.json updated to enabled=false"
+if [[ "$after" == "True" ]]; then
+  ok "real config.json updated to enabled=true"
 else
   fail "real config.json NOT updated" "context-monitor.enabled is still $after; CLI wrote to a different path"
 fi
