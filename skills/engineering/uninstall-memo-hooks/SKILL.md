@@ -1,6 +1,6 @@
 ---
 name: uninstall-memo-hooks
-description: Reverse every hooks-tier memo-flow mutation in the current project. Removes hook scripts, config.json, settings entries, and gitignore entries. Drops "hooks" from the registry tier while leaving the base tier and base mutations intact. Non-interactive default for fenced content: preserve + strip fences.
+description: 'Reverse every hooks-tier memo-flow mutation in the current project. Removes hook scripts, config.json, settings entries, and gitignore entries. Drops "hooks" from the registry tier while leaving the base tier and base mutations intact. Non-interactive default for fenced content: preserve + strip fences.'
 ---
 
 # Uninstall memo-flow hooks
