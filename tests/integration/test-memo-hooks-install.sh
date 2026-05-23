@@ -94,6 +94,34 @@ for event_hooks in hooks.values():
 print('no')
 ")
   [[ "$has_monitor" == "yes" ]] && ok "context-monitor hook in settings.json" || fail "context-monitor hook missing from settings.json"
+
+  leaderboard_type=$(python3 -c "
+import json
+d = json.load(open('$settings'))
+hooks = d.get('hooks', {})
+for event_hooks in hooks.values():
+    for group in event_hooks:
+        for h in group.get('hooks', []):
+            if h.get('id') == 'memo-flow:skill-leaderboard':
+                print(h.get('type', '(missing)'))
+                import sys; sys.exit(0)
+print('(not found)')
+")
+  [[ "$leaderboard_type" == "command" ]] && ok "skill-leaderboard type=command" || fail "skill-leaderboard type wrong: got '$leaderboard_type', want 'command'"
+
+  monitor_type=$(python3 -c "
+import json
+d = json.load(open('$settings'))
+hooks = d.get('hooks', {})
+for event_hooks in hooks.values():
+    for group in event_hooks:
+        for h in group.get('hooks', []):
+            if h.get('id') == 'memo-flow:context-monitor':
+                print(h.get('type', '(missing)'))
+                import sys; sys.exit(0)
+print('(not found)')
+")
+  [[ "$monitor_type" == "command" ]] && ok "context-monitor type=command" || fail "context-monitor type wrong: got '$monitor_type', want 'command'"
 else
   fail "settings.json not created"
 fi

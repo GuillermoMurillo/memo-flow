@@ -404,12 +404,12 @@ manifest_append_if_absent "$MANIFEST" \
 # ── add settings.json entries ─────────────────────────────────────────────────
 
 leaderboard_cmd=".claude/memo-flow/hooks/skill-leaderboard.sh"
-leaderboard_hook="{\"id\":\"memo-flow:skill-leaderboard\",\"command\":\"${leaderboard_cmd}\",\"type\":\"stdin\"}"
+leaderboard_hook="{\"id\":\"memo-flow:skill-leaderboard\",\"command\":\"${leaderboard_cmd}\",\"type\":\"command\"}"
 
 "$SETTINGS_SH" insert "$SETTINGS_JSON" "PostToolUse" "" "$leaderboard_hook"
 
 monitor_cmd=".claude/memo-flow/hooks/context-monitor.sh"
-monitor_hook="{\"id\":\"memo-flow:context-monitor\",\"command\":\"${monitor_cmd}\",\"type\":\"stdin\"}"
+monitor_hook="{\"id\":\"memo-flow:context-monitor\",\"command\":\"${monitor_cmd}\",\"type\":\"command\"}"
 
 "$SETTINGS_SH" insert "$SETTINGS_JSON" "UserPromptSubmit" "" "$monitor_hook"
 
