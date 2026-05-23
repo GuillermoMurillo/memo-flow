@@ -1,0 +1,423 @@
+#!/usr/bin/env bash
+# hooks — day-two management CLI for memo-flow installed hooks.
+#
+# Usage:
+#   hooks                              TUI editor for config.json
+#   hooks --set <hook>=<bool>          non-interactive enable/disable toggle
+#   hooks --set <hook>.<field>=<val>   set any scalar field (string, int, bool)
+#   hooks leaderboard                  print top-N skills from skill-usage.json
+#
+# Config location: $MEMO_FLOW_CONFIG (env), or resolved from the installed
+#                  bundle path (project root via SCRIPT_DIR), or $PWD-relative.
+# Skill usage:     $MEMO_FLOW_SKILL_USAGE (env) or ~/.claude/memo-flow/skill-usage.json
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# locate hook-config.sh — lives next to this CLI in the install-memo-hooks
+# bundle. Same path math works for source tree and installed location since
+# both preserve <bundle>/{hooks,modules}/ layout.
+HOOK_CONFIG_SH="$(cd "$SCRIPT_DIR/../modules" 2>/dev/null && pwd)/hook-config.sh"
+STATE_SH="$(cd "$SCRIPT_DIR/../modules" 2>/dev/null && pwd)/state.sh"
+
+if [ ! -f "$HOOK_CONFIG_SH" ]; then
+  echo "hooks: hook-config.sh not found (looked in $SCRIPT_DIR/../modules)" >&2
+  exit 1
+fi
+
+# Resolve the default config path. When invoked via the installed wrapper
+# at <project>/.claude/memo-flow/bin/memo-hooks, the wrapper exec's
+# <project>/.claude/skills/install-memo-hooks/bin/hooks, so SCRIPT_DIR is
+# <project>/.claude/skills/install-memo-hooks/bin and the project root is
+# four directories up.
+_default_config() {
+  local candidate="$SCRIPT_DIR/../../../../.claude/memo-flow/config.json"
+  if [ -d "$(dirname "$candidate")" ]; then
+    echo "$candidate"
+    return
+  fi
+  # Fallback: cwd-relative, for dev/test invocations from arbitrary directories.
+  echo "$PWD/.claude/memo-flow/config.json"
+}
+
+CONFIG_FILE="${MEMO_FLOW_CONFIG:-$(_default_config)}"
+SKILL_USAGE="${MEMO_FLOW_SKILL_USAGE:-$HOME/.claude/memo-flow/skill-usage.json}"
+
+# Resolve project scope settings.json. CONFIG_FILE is at
+# <project>/.claude/memo-flow/config.json — project root is three dirs up.
+_default_settings() {
+  local proj
+  proj="$(cd "$(dirname "$CONFIG_FILE")/../../.." 2>/dev/null && pwd)"
+  if [ -n "$proj" ]; then
+    echo "$proj/.claude/settings.json"
+    return
+  fi
+  echo "$PWD/.claude/settings.json"
+}
+
+SETTINGS_FILE="${MEMO_FLOW_SETTINGS:-$(_default_settings)}"
+
+# ── leaderboard ───────────────────────────────────────────────────────────────
+
+cmd_leaderboard() {
+  local top_n="${1:-10}"
+
+  if [ ! -f "$SKILL_USAGE" ]; then
+    echo "(no skill usage data at $SKILL_USAGE)"
+    exit 0
+  fi
+
+  python3 - "$SKILL_USAGE" "$top_n" <<'PYEOF'
+import json, sys
+
+usage_file, top_n_str = sys.argv[1], sys.argv[2]
+top_n = int(top_n_str)
+
+try:
+    data = json.load(open(usage_file))
+    if not isinstance(data, dict):
+        print("(skill-usage.json is not a JSON object)")
+        sys.exit(0)
+except Exception as e:
+    print(f"(could not read skill-usage.json: {e})")
+    sys.exit(0)
+
+ranked = sorted(data.items(), key=lambda kv: kv[1], reverse=True)[:top_n]
+
+if not ranked:
+    print("(no skill invocations recorded yet)")
+    sys.exit(0)
+
+max_name_len = max(len(k) for k, _ in ranked)
+max_count_len = max(len(str(v)) for _, v in ranked)
+
+print(f"{'rank':<5} {'skill':<{max_name_len}}  {'count':>{max_count_len}}")
+print("-" * (5 + 1 + max_name_len + 2 + max_count_len))
+for i, (skill, count) in enumerate(ranked, 1):
+    print(f"{i:<5} {skill:<{max_name_len}}  {count:>{max_count_len}}")
+PYEOF
+}
+
+# ── --set <hook>=<bool> ───────────────────────────────────────────────────────
+
+cmd_set() {
+  local arg="$1"
+
+  # validate format: must contain exactly one "="
+  if [[ "$arg" != *=* ]]; then
+    echo "hooks: --set requires <hook>=<bool> or <hook>.<field>=<value>, got: $arg" >&2
+    exit 1
+  fi
+
+  local key="${arg%%=*}"
+  local value="${arg#*=}"
+
+  if [ -z "$key" ]; then
+    echo "hooks: --set key cannot be empty" >&2
+    exit 1
+  fi
+
+  # No dot → legacy bool toggle on the hook's `enabled` flag.
+  if [[ "$key" != *.* ]]; then
+    case "$value" in
+      true|false) ;;
+      *)
+        echo "hooks: --set <hook>=<value> requires true|false (use <hook>.enabled=$value for explicit fields), got: $value" >&2
+        exit 1
+        ;;
+    esac
+    "$HOOK_CONFIG_SH" toggle "$CONFIG_FILE" "$key" "$value"
+    return
+  fi
+
+  # Dotted path → arbitrary scalar field merge.
+  local hook="${key%%.*}"
+  local field="${key#*.}"
+
+  if [ -z "$hook" ] || [ -z "$field" ]; then
+    echo "hooks: --set <hook>.<field>=<value> needs non-empty hook and field, got: $arg" >&2
+    exit 1
+  fi
+
+  # Coerce the value: true/false → bool, all-digits → int, else string.
+  # Build a JSON object {<field>: <value>} and merge via set-hook-config.
+  local merge_json
+  merge_json=$(python3 - "$field" "$value" <<'PYEOF'
+import json, sys
+field, raw = sys.argv[1], sys.argv[2]
+if raw == "true":
+    v = True
+elif raw == "false":
+    v = False
+elif raw.lstrip("-").isdigit():
+    v = int(raw)
+else:
+    v = raw
+print(json.dumps({field: v}))
+PYEOF
+)
+
+  "$HOOK_CONFIG_SH" set-hook-config "$CONFIG_FILE" "$hook" "$merge_json"
+}
+
+# ── TUI (default, no args) ────────────────────────────────────────────────────
+
+cmd_tui() {
+  # ensure config exists so the editor has something to open
+  if [ ! -f "$CONFIG_FILE" ]; then
+    local defaults
+    defaults=$("$HOOK_CONFIG_SH" get-all "$CONFIG_FILE")
+    local config_dir
+    config_dir="$(dirname "$CONFIG_FILE")"
+    mkdir -p "$config_dir"
+    printf '%s\n' "$defaults" > "$CONFIG_FILE"
+  fi
+
+  if command -v gum > /dev/null 2>&1; then
+    _tui_gum
+  else
+    _tui_editor
+  fi
+}
+
+_tui_gum() {
+  # build a checkbox list from the hooks in config.json
+  local config_json
+  config_json=$("$HOOK_CONFIG_SH" get-all "$CONFIG_FILE")
+
+  # get hook names and their enabled state
+  local hooks enabled_hooks
+  hooks=$(python3 -c "
+import json, sys
+data = json.loads(sys.argv[1])
+for hook in data:
+    state = 'enabled' if data[hook].get('enabled', True) else 'disabled'
+    print(f'{hook}  [{state}]')
+" "$config_json")
+
+  if [ -z "$hooks" ]; then
+    echo "no hooks configured in $CONFIG_FILE"
+    return
+  fi
+
+  # let user pick which hooks to toggle
+  echo "Toggle hooks (space to select, enter to confirm):"
+  local selected
+  selected=$(echo "$hooks" | gum choose --no-limit) || return 0
+
+  # gum returns empty when the user confirms without selecting; bail cleanly
+  # rather than iterating once on a blank line (heredoc adds a trailing \n
+  # that `while read` consumes as one empty iteration).
+  if [ -z "$selected" ]; then
+    echo "(no hooks selected)"
+    return 0
+  fi
+
+  while IFS= read -r line; do
+    [ -z "$line" ] && continue
+    local hook_name
+    hook_name=$(echo "$line" | awk '{print $1}')
+    if [ -z "$hook_name" ]; then
+      echo "  (skipped malformed selection: '$line')" >&2
+      continue
+    fi
+    local current_state
+    current_state=$(python3 -c "
+import json, sys
+data = json.loads(sys.argv[1])
+hook = sys.argv[2]
+print('true' if data.get(hook, {}).get('enabled', True) else 'false')
+" "$config_json" "$hook_name")
+    local new_state
+    new_state="$([ "$current_state" = "true" ] && echo "false" || echo "true")"
+    "$HOOK_CONFIG_SH" toggle "$CONFIG_FILE" "$hook_name" "$new_state"
+    echo "  $hook_name → $new_state"
+  done <<< "$selected"
+}
+
+_tui_editor() {
+  local editor="${EDITOR:-vi}"
+  "$editor" "$CONFIG_FILE"
+}
+
+# ── status ────────────────────────────────────────────────────────────────────
+
+# Lifecycle order per the Claude Code event model.
+# Only events that appear here are eligible for display; unknown events
+# fall through to an "Other" bucket at the end.
+_LIFECYCLE_ORDER="SessionStart UserPromptSubmit PreToolUse PostToolUse Notification PreCompact Stop SubagentStop SessionEnd"
+
+# Static mapping: hook name → Claude Code event.
+# Update when a new hook is added to the bundle.
+_hook_event() {
+  case "$1" in
+    context-monitor)   echo "UserPromptSubmit" ;;
+    skill-leaderboard) echo "PostToolUse" ;;
+    *)                 echo "Other" ;;
+  esac
+}
+
+cmd_repair_settings() {
+  if [ ! -f "$SETTINGS_FILE" ]; then
+    return 0
+  fi
+
+  python3 - "$SETTINGS_FILE" <<'PYEOF'
+import json, os, sys, tempfile
+
+settings_file = sys.argv[1]
+
+try:
+    data = json.load(open(settings_file))
+except Exception as e:
+    print("memo-hooks: could not read settings file: {}".format(e), file=sys.stderr)
+    sys.exit(1)
+
+changed = 0
+for event_groups in data.get("hooks", {}).values():
+    for group in event_groups:
+        for h in group.get("hooks", []):
+            if h.get("id", "").startswith("memo-flow:") and h.get("type") == "stdin":
+                h["type"] = "command"
+                changed += 1
+
+if changed > 0:
+    tmp_dir = os.path.dirname(settings_file)
+    fd, tmppath = tempfile.mkstemp(dir=tmp_dir, prefix=".settings-repair-", suffix=".json")
+    try:
+        with os.fdopen(fd, "w") as f:
+            json.dump(data, f, indent=2)
+            f.write("\n")
+        os.rename(tmppath, settings_file)
+    except Exception:
+        os.unlink(tmppath)
+        raise
+    print("memo-hooks: repaired {} settings entries (type=stdin → type=command)".format(changed))
+PYEOF
+}
+
+cmd_status() {
+  local config_json
+  config_json=$("$HOOK_CONFIG_SH" get-all "$CONFIG_FILE")
+
+  python3 - "$config_json" "$_LIFECYCLE_ORDER" <<'PYEOF'
+import json, sys
+
+config_json_str, lifecycle_str = sys.argv[1], sys.argv[2]
+lifecycle_order = lifecycle_str.split()
+
+try:
+    data = json.loads(config_json_str)
+except Exception:
+    data = {}
+
+# hook-name → event (must match _hook_event() in the shell script)
+HOOK_EVENTS = {
+    "context-monitor":   "UserPromptSubmit",
+    "skill-leaderboard": "PostToolUse",
+}
+
+# collect only enabled hooks, keyed by event
+by_event: dict[str, list[tuple[str, dict]]] = {}
+for hook, cfg in data.items():
+    if not cfg.get("enabled", False):
+        continue
+    event = HOOK_EVENTS.get(hook, "Other")
+    by_event.setdefault(event, []).append((hook, cfg))
+
+if not by_event:
+    print("(no active hooks)")
+    sys.exit(0)
+
+def format_hook(name: str, cfg: dict) -> str:
+    if name == "context-monitor":
+        mode = cfg.get("mode", "notify")
+        threshold = cfg.get("threshold", 99000)
+        return f"  {name}: ENABLED — mode {mode}, threshold {threshold} tokens"
+    if name == "skill-leaderboard":
+        out = cfg.get("output_file", "~/.claude/memo-flow/skill-usage.json")
+        return f"  {name}: ENABLED — writing to {out}"
+    return f"  {name}: ENABLED"
+
+# print in lifecycle order; any unknown events go at the end
+ordered_events = [e for e in lifecycle_order if e in by_event]
+extra_events   = [e for e in by_event if e not in lifecycle_order]
+
+first = True
+for event in ordered_events + extra_events:
+    if not first:
+        print()
+    first = False
+    print(event)
+    for name, cfg in by_event[event]:
+        print(format_hook(name, cfg))
+PYEOF
+
+  # schema audit: surface any broken settings.json entries
+  if [ -f "$STATE_SH" ] && [ -f "$SETTINGS_FILE" ]; then
+    local audit_json project_path
+    project_path="$(cd "$(dirname "$CONFIG_FILE")/../../.." 2>/dev/null && pwd)"
+    audit_json="$(bash "$STATE_SH" audit "$SETTINGS_FILE" "${project_path:-$PWD}" 2>/dev/null || echo "[]")"
+    local finding_count
+    finding_count="$(python3 -c "import json,sys; print(len(json.loads(sys.argv[1])))" "$audit_json" 2>/dev/null || echo "0")"
+    if [ "$finding_count" -gt 0 ]; then
+      echo ""
+      echo "schema issues ($finding_count):"
+      python3 - "$audit_json" <<'PYEOF'
+import json, sys
+for f in json.loads(sys.argv[1]):
+    print("  {}: {}".format(f["entry"], f["problem"]))
+PYEOF
+      echo ""
+      echo "run 'memo-hooks --repair-settings' to fix type errors"
+    fi
+  fi
+}
+
+# ── dispatch ──────────────────────────────────────────────────────────────────
+
+case "${1:-}" in
+  leaderboard)
+    shift
+    cmd_leaderboard "${1:-10}"
+    ;;
+  status)
+    cmd_status
+    ;;
+  --set)
+    shift
+    if [ -z "${1:-}" ]; then
+      echo "hooks: --set requires an argument" >&2
+      exit 1
+    fi
+    cmd_set "$1"
+    ;;
+  --repair-settings)
+    cmd_repair_settings
+    ;;
+  "")
+    cmd_tui
+    ;;
+  --help|-h)
+    cat <<'EOF'
+usage: hooks [<command>]
+
+commands:
+  (none)              open TUI editor for config.json
+  status              list active hooks grouped by event lifecycle
+  --set <hook>=<bool>              enable/disable toggle (shorthand for <hook>.enabled=<bool>)
+  --set <hook>.<field>=<value>     set any scalar field on a hook (string, int, or bool)
+  leaderboard [N]     print top N skills by invocation count (default: 10)
+
+environment:
+  MEMO_FLOW_CONFIG      path to config.json (default: ./scripts/memo-flow/config.json)
+  MEMO_FLOW_SKILL_USAGE path to skill-usage.json (default: ~/.claude/memo-flow/skill-usage.json)
+EOF
+    ;;
+  *)
+    echo "hooks: unknown command '$1'" >&2
+    echo "run 'hooks --help' for usage" >&2
+    exit 1
+    ;;
+esac

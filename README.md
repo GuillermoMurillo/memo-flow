@@ -88,6 +88,42 @@ ready-for-agent + ready-for-human issues
 shipped
 ```
 
+## Optional shortcuts for afk-cook
+
+memo-flow installs nothing outside `.claude/memo-flow/`. The wrapper lives at `.claude/memo-flow/bin/afk-cook` and that path is intentional — it avoids squatting the consumer's `PATH` or adding files to the project root. Shortcuts are the consumer's choice and live in the consumer's tree.
+
+Three opt-in recipes:
+
+### Shell alias
+
+Add to `.zshrc` or `.bashrc`:
+
+```bash
+alias afk-cook='.claude/memo-flow/bin/afk-cook'
+```
+
+Works from any directory inside the project once the shell is reloaded. The alias resolves relative to wherever you invoke it, so run it from the project root.
+
+### direnv
+
+If the project uses [direnv](https://direnv.net/), add to `.envrc`:
+
+```bash
+PATH_add .claude/memo-flow/bin
+```
+
+`direnv allow` once, then `afk-cook` is on your `PATH` whenever you enter the project directory. The `.envrc` file is the consumer's; add it to `.gitignore` or commit it — your call.
+
+### Symlink
+
+One-time setup at the project root:
+
+```bash
+ln -s .claude/memo-flow/bin/afk-cook afk-cook
+```
+
+Then invoke as `./afk-cook`. The symlink is the consumer's file — it doesn't belong in this repo. Add it to the consumer project's `.gitignore` if it shouldn't be committed.
+
 ## Attribution
 
 Some skills under `skills/engineering/` and `skills/productivity/` are vendored from third-party MIT-licensed sources. Each vendored `SKILL.md` carries a one-line attribution header. Full upstream license text is in `THIRD_PARTY_NOTICES.md`.

@@ -1,0 +1,26 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: sync check
+        run: bin/sync-modules.sh --check
+
+      - name: install test deps
+        run: pip3 install pyyaml
+
+      - name: tests
+        run: bin/run-tests.sh
+
+      # no-op until slice 4 implements the coverage gate; wired now so that
+      # slice 4 only needs to add logic, not CI plumbing
+      - name: coverage gate
+        run: bin/run-tests.sh --check-coverage

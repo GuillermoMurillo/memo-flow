@@ -5,7 +5,7 @@ description: Turn the current conversation context into a PRD and publish it to 
 
 This skill takes the current conversation context and codebase understanding and produces a PRD. Do NOT interview the user — just synthesize what you already know.
 
-The issue tracker and triage label vocabulary should have been provided to you — run `/setup-memo-flow` if not.
+The issue tracker and triage label vocabulary should have been provided to you — run `/memo-flow` if not.
 
 ## Process
 

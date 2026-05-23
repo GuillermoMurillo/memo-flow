@@ -1,0 +1,15 @@
+# coverage-exempt — sources intentionally without a direct test file.
+# Format: <relative-source-path>  # justification
+# Use sparingly. Prefer a real test in tests/unit/ or tests/integration/.
+
+# shared modules exercised end-to-end or via the manifest unit test
+_shared-modules/bundle-inventory.sh    # exercised transitively by setup-memo-flow e2e; standalone test deferred
+_shared-modules/drift-detector.sh     # exercised transitively by memo-flow-doctor; standalone test deferred
+_shared-modules/hook-config.sh        # exercised transitively by install/uninstall-memo-hooks; standalone test deferred
+_shared-modules/marker-fence.sh       # exercised transitively by setup-memo-flow; standalone test deferred
+_shared-modules/settings-mutator.sh   # exercised transitively by install-memo-hooks integration test; standalone test deferred
+
+# skill entry scripts whose install journey is covered by the e2e test
+skills/engineering/memo-flow-doctor/memo-flow-doctor.sh      # integration test deferred; doctor is diagnostic-only, no side effects to assert
+skills/engineering/uninstall-memo-flow/uninstall-memo-flow.sh  # integration test deferred; inverse of setup-memo-flow e2e
+skills/engineering/uninstall-memo-hooks/uninstall-memo-hooks.sh  # integration test deferred; inverse of install-memo-hooks integration test

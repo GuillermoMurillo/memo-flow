@@ -4,8 +4,8 @@ This repository vendors a derivative of [mattpocock/skills](https://github.com/m
 
 Modifications:
 - Subset of skills selected (engineering + productivity).
-- The upstream in-progress `review` skill is vendored as `memo-review` (renamed; behavior intact) and promoted to `skills/engineering/` so consumers receive it via `npx skills@latest add`. Heading updated to match the new name. Description extended with extra triggering language for the `/ship` integration. Body content unchanged from upstream at vendor time.
-- `setup-matt-pocock-skills` skill renamed to `setup-memo-flow` (cosmetic rename; behavior unchanged in v1).
+- The upstream in-progress `review` skill is vendored as `review` (matching upstream name; behavior intact) and promoted to `skills/engineering/`. Description extended with extra triggering language for the `/ship` integration. Body content unchanged from upstream at vendor time. (Briefly renamed to `memo-review` during 2026-05-18 development to avoid collision with Claude Code's built-in `/review`; reverted to `review` once collision behavior was verified acceptable.)
+- `setup-matt-pocock-skills` skill: originally vendored as `setup-memo-flow` (cosmetic rename, behavior unchanged); subsequently consolidated into the original `memo-flow` skill (PR #35, 2026-05-23) which now houses fresh install, health check, and repair as state-routed branches. The original `setup-matt-pocock-skills` body is no longer shipped as a standalone skill; its install logic lives in `skills/engineering/memo-flow/SKILL.md` Branch A.
 - Per-file attribution header added to each vendored `SKILL.md`.
 - Subsequent customizations (e.g. AFK scripts, post-slice recommendation step) are original to this repository and not derived from upstream.
 - `diagnose` SKILL.md: added two mandatory checkpoints — end of Phase 1 (state the feedback loop before reproducing) and end of Phase 4 (state root cause + fix type before writing code). Diverges from upstream, where Phase 4→5 flows without a stop. Tracks the intent of upstream proposal mattpocock/skills#124 (open, unanswered).

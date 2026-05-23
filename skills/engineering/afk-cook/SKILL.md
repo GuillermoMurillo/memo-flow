@@ -13,23 +13,24 @@ A single long Claude session accumulates context across slices, drifts, and even
 
 ## Installation
 
-The runner is installed into the consumer project by `/setup-memo-flow`. After running `/setup-memo-flow` in a project, two files appear:
+The runner is installed into the consumer project by `/memo-flow`. After running `/memo-flow` in a project, the wrapper appears at:
 
 ```
-<project-root>/scripts/afk-cook
-<project-root>/scripts/slice-prompt.md
+<project-root>/.claude/memo-flow/bin/afk-cook
 ```
 
-Run `./scripts/afk-cook` from the project root.
+Run `./.claude/memo-flow/bin/afk-cook` from the project root.
 
-If those files are missing, re-run `/setup-memo-flow` and confirm AFK installation when prompted.
+If that file is missing, re-run `/memo-flow` and confirm AFK installation when prompted.
 
 ## Usage
 
+> The full path `.claude/memo-flow/bin/afk-cook` is intentional — memo-flow doesn't touch your `PATH`. See [Optional shortcuts for afk-cook](../../../../../README.md#optional-shortcuts-for-afk-cook) in the root README for alias, direnv, and symlink recipes.
+
 ```bash
-./scripts/afk-cook                  # all open ready-for-agent issues
-./scripts/afk-cook <N>              # one slice (good for first try)
-./scripts/afk-cook <N> <M> <O>      # explicit batch
+./.claude/memo-flow/bin/afk-cook                  # all open ready-for-agent issues
+./.claude/memo-flow/bin/afk-cook <N>              # one slice (good for first try)
+./.claude/memo-flow/bin/afk-cook <N> <M> <O>      # explicit batch
 ```
 
 ### Dependency ordering
@@ -55,7 +56,7 @@ Within a topological layer (slices with the same depth in the graph), order fall
 | `LABEL` | `ready-for-agent` | Which label to query when no args passed |
 | `PROMPT_FILE` | `<script-dir>/slice-prompt.md` | Override the prompt template |
 
-Example: `MAX_RETRIES=1 ./scripts/afk-cook <N>` for one-shot mode on a single slice.
+Example: `MAX_RETRIES=1 ./.claude/memo-flow/bin/afk-cook <N>` for one-shot mode on a single slice.
 
 ## What you see when it runs
 
@@ -100,7 +101,7 @@ When you finish a `/tdd` interactive session on a `ready-for-agent` slice, end y
 ```
 #<N> done. Remaining ready-for-agent: #<M>, #<O>, #<P>.
 To batch them, run:
-  ./scripts/afk-cook <M> <O> <P>
+  ./.claude/memo-flow/bin/afk-cook <M> <O> <P>
 ```
 
 Use the actual current open issue numbers, queried via `gh issue list --label ready-for-agent --state open --json number,title`. Don't hardcode numbers in this doc; they go stale.
