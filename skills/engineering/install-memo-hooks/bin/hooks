@@ -191,9 +191,22 @@ for hook in data:
   local selected
   selected=$(echo "$hooks" | gum choose --no-limit) || return 0
 
+  # gum returns empty when the user confirms without selecting; bail cleanly
+  # rather than iterating once on a blank line (heredoc adds a trailing \n
+  # that `while read` consumes as one empty iteration).
+  if [ -z "$selected" ]; then
+    echo "(no hooks selected)"
+    return 0
+  fi
+
   while IFS= read -r line; do
+    [ -z "$line" ] && continue
     local hook_name
     hook_name=$(echo "$line" | awk '{print $1}')
+    if [ -z "$hook_name" ]; then
+      echo "  (skipped malformed selection: '$line')" >&2
+      continue
+    fi
     local current_state
     current_state=$(python3 -c "
 import json, sys
