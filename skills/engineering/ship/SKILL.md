@@ -1,6 +1,6 @@
 ---
 name: ship
-description: Take a finished feature branch from "I think I'm done" to "PR open with the right body that will close the parent PRD on merge." Verifies the branch is shippable, inventories slice commits and their parent PRD via `## Parent` walks, runs `/memo-review` as a gate, drafts a PR body with `Closes #<PRD>`, and opens the PR. Use this whenever a feature branch is ready to merge, before running `gh pr create` by hand, when wrapping up a batch of slices, when the parent PRD is still open after all children shipped, or when the user says "ship it", "open the PR", "I'm done with these slices", "let's merge", or "wrap this up". Always prefer this over a hand-rolled `gh pr create`, so the review gate and PRD-close ref are not skipped.
+description: Take a finished feature branch from "I think I'm done" to "PR open with the right body that will close the parent PRD on merge." Verifies the branch is shippable, inventories slice commits and their parent PRD via `## Parent` walks, runs `/review` as a gate, drafts a PR body with `Closes #<PRD>`, and opens the PR. Use this whenever a feature branch is ready to merge, before running `gh pr create` by hand, when wrapping up a batch of slices, when the parent PRD is still open after all children shipped, or when the user says "ship it", "open the PR", "I'm done with these slices", "let's merge", or "wrap this up". Always prefer this over a hand-rolled `gh pr create`, so the review gate and PRD-close ref are not skipped.
 ---
 
 # Ship
@@ -49,7 +49,7 @@ Expected outcome: every slice references the same parent PRD. Three cases:
 
 ### 3. Run the review gate
 
-Invoke `/memo-review` against `main` as the fixed point. The review runs Standards + Spec sub-agents in parallel and returns findings.
+Invoke `/review` against `main` as the fixed point. The review runs Standards + Spec sub-agents in parallel and returns findings.
 
 Present the findings verbatim and **stop**. The user must explicitly say one of:
 
@@ -101,7 +101,7 @@ If `gh pr create` fails (no remote configured, branch not pushed, network error,
 
 Three failure modes it prevents:
 
-1. **PR opens without a review pass.** Memo-review is easy to skip when shipping by hand. Pinning it as step 3 makes skipping it deliberate.
+1. **PR opens without a review pass.** `/review` is easy to skip when shipping by hand. Pinning it as step 3 makes skipping it deliberate.
 2. **PR body omits `Closes #<PRD>`.** Without that line, the parent PRD stays open after merge. Someone has to close it later, and often nobody does. The tracker drifts out of sync with reality.
 3. **Redundant `Closes #<slice>` lines.** Slices are already closed. Adding `Closes` refs for them is noise that suggests the author didn't understand the close model. Step 4 explicitly disallows it.
 

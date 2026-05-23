@@ -1,11 +1,11 @@
 ---
-name: memo-review
+name: review
 description: Review the changes since a fixed point (commit, branch, tag, or merge-base) along two axes — Standards (does the code follow this repo's documented coding standards?) and Spec (does the code match what the originating issue/PRD asked for?). Runs both reviews in parallel sub-agents and reports them side by side. Use when the user wants to review a branch, a PR, work-in-progress changes, or asks to "review since X". Also invoke when running as the review gate inside `/ship`, when confirming a branch is ready to merge, before opening a PR, or when the user says "review this branch", "check the diff", "is this ready to ship", or "gate-check this".
 ---
 
 <!-- Vendored from mattpocock/skills (MIT). See THIRD_PARTY_NOTICES.md. -->
 
-# Memo-review
+# Review
 
 Two-axis review of the diff between `HEAD` and a fixed point the user supplies:
 
