@@ -264,10 +264,10 @@ Fires when state is `healthy` — the project is fully set up.
 
 ### B1. Locate the doctor script
 
-The health-check logic lives in `.claude/skills/memo-flow/memo-flow-doctor.sh`. Confirm it exists before proceeding:
+The health-check logic lives in `.claude/skills/memo-flow/doctor.sh`. Confirm it exists before proceeding:
 
 ```bash
-ls .claude/skills/memo-flow/memo-flow-doctor.sh
+ls .claude/skills/memo-flow/doctor.sh
 ```
 
 If it doesn't exist, tell the user to re-install the bundle:
@@ -290,7 +290,7 @@ Pass whichever exists. If neither exists, tell the user to re-install.
 From the project root (read-only mode by default):
 
 ```bash
-.claude/skills/memo-flow/memo-flow-doctor.sh --bundle-dir <bundle-dir>
+.claude/skills/memo-flow/doctor.sh --bundle-dir <bundle-dir>
 ```
 
 Report the output to the user. Each managed mutation is listed with one of:
@@ -308,7 +308,7 @@ Report the output to the user. Each managed mutation is listed with one of:
 If the user wants to repair all fixable items non-interactively:
 
 ```bash
-.claude/skills/memo-flow/memo-flow-doctor.sh --fix --bundle-dir <bundle-dir>
+.claude/skills/memo-flow/doctor.sh --fix --bundle-dir <bundle-dir>
 ```
 
 This restores `missing` and `drifted-clean` files from the bundle, and overwrites `drifted-edited` files (restoring bundle content). It never touches `customized` mutations.

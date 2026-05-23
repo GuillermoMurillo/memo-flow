@@ -17,7 +17,7 @@
 #                         (default: the skill folder containing this script)
 #   --non-interactive     don't prompt; default scope = project
 #   --check-only          report drift / install state without writing anything.
-#                         Used by setup-memo-flow step 7, which is read-only
+#                         Used by /memo-flow step 7, which is read-only
 #                         for hooks. Implies --non-interactive.
 #
 # Behavior:
@@ -343,7 +343,7 @@ done
 
 # ── install memo-hooks CLI wrapper ────────────────────────────────────────────
 # memo-hooks SKILL.md documents `.claude/memo-flow/bin/memo-hooks` as the CLI.
-# Same pattern as the afk-cook wrapper installed by setup-memo-flow step 6:
+# Same pattern as the afk-cook wrapper installed by /memo-flow step 6:
 # stable path under .claude/memo-flow/bin/ that delegates to the real binary
 # under .claude/skills/, so updates to the skill flow through automatically.
 

@@ -102,10 +102,10 @@ except Exception as e:
 
 sv = d.get('schema_version')
 if sv is None:
-    print('manifest: missing schema_version — this is a v0 manifest; re-run /setup-memo-flow to migrate', file=sys.stderr)
+    print('manifest: missing schema_version — this is a v0 manifest; re-run /memo-flow to migrate', file=sys.stderr)
     sys.exit(1)
 if sv != $SCHEMA_VERSION:
-    print(f'manifest: unsupported schema_version {sv} (expected $SCHEMA_VERSION) — re-run /setup-memo-flow to migrate', file=sys.stderr)
+    print(f'manifest: unsupported schema_version {sv} (expected $SCHEMA_VERSION) — re-run /memo-flow to migrate', file=sys.stderr)
     sys.exit(1)
 "
     ;;

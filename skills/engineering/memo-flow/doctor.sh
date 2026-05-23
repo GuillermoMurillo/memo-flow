@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# memo-flow-doctor.sh — per-mutation drift report for a memo-flow managed project.
+# doctor.sh — per-mutation drift report for a memo-flow managed project.
 #
 # Usage:
-#   memo-flow-doctor.sh [--fix] [--project-dir <dir>] [--bundle-dir <dir>]
-#   memo-flow-doctor.sh --survey [--registry <file>] [--bundle-dir <dir>]
+#   doctor.sh [--fix] [--project-dir <dir>] [--bundle-dir <dir>]
+#   doctor.sh --survey [--registry <file>] [--bundle-dir <dir>]
 #
 # Flags:
 #   --project-dir <dir>   project root (default: cwd)
@@ -20,7 +20,7 @@
 #   customized      mutation has customized:true (opted out of updates)
 #
 # Read-only by default. Pass --fix to restore files non-interactively.
-# Routes config-level decisions (doc_block, settings_entry) to /setup-memo-flow.
+# Routes config-level decisions (doc_block, settings_entry) to /memo-flow.
 # Honors customized flag — never overwrites customized mutations.
 
 set -euo pipefail
@@ -45,7 +45,7 @@ while [[ $# -gt 0 ]]; do
     --fix)         FIX=true;         shift ;;
     --survey)      SURVEY=true;      shift ;;
     --registry)    REGISTRY_FILE="$2"; shift 2 ;;
-    *) echo "memo-flow-doctor: unknown flag: $1" >&2; exit 1 ;;
+    *) echo "doctor: unknown flag: $1" >&2; exit 1 ;;
   esac
 done
 
@@ -53,7 +53,7 @@ done
 
 if [ "$SURVEY" = true ]; then
   if [ ! -f "$REGISTRY_FILE" ]; then
-    echo "memo-flow-doctor: no user registry found at $REGISTRY_FILE" >&2
+    echo "doctor: no user registry found at $REGISTRY_FILE" >&2
     exit 1
   fi
 
@@ -61,7 +61,7 @@ if [ "$SURVEY" = true ]; then
     if [ -d "$HOME/.claude/skills/memo-flow" ]; then
       BUNDLE_DIR="$HOME/.claude/skills/memo-flow"
     else
-      echo "memo-flow-doctor: bundle directory not found — pass --bundle-dir <dir>" >&2
+      echo "doctor: bundle directory not found — pass --bundle-dir <dir>" >&2
       exit 1
     fi
   fi
@@ -74,11 +74,11 @@ for p in data.get('projects', []):
 ")
 
   if [ -z "$projects" ]; then
-    echo "memo-flow-doctor: no projects registered in $REGISTRY_FILE"
+    echo "doctor: no projects registered in $REGISTRY_FILE"
     exit 0
   fi
 
-  echo "memo-flow-doctor: survey across registered projects"
+  echo "doctor: survey across registered projects"
   echo ""
   printf "  %-50s  %s\n" "project" "status"
   printf "  %-50s  %s\n" "-------" "------"
@@ -139,7 +139,7 @@ MANIFEST="$PROJECT_DIR/.claude/memo-flow/manifest.json"
 # ── pre-flight ────────────────────────────────────────────────────────────────
 
 if [ ! -f "$MANIFEST" ]; then
-  echo "memo-flow-doctor: no manifest found at $MANIFEST — is memo-flow installed in this project?" >&2
+  echo "doctor: no manifest found at $MANIFEST — is memo-flow installed in this project?" >&2
   exit 1
 fi
 
@@ -153,13 +153,13 @@ if [ -z "$BUNDLE_DIR" ]; then
   elif [ -d "$PROJECT_DIR/.claude/skills/memo-flow" ]; then
     BUNDLE_DIR="$PROJECT_DIR/.claude/skills/memo-flow"
   else
-    echo "memo-flow-doctor: bundle directory not found — pass --bundle-dir <dir>" >&2
+    echo "doctor: bundle directory not found — pass --bundle-dir <dir>" >&2
     exit 1
   fi
 fi
 
 if [ ! -d "$BUNDLE_DIR" ]; then
-  echo "memo-flow-doctor: bundle directory not found: $BUNDLE_DIR" >&2
+  echo "doctor: bundle directory not found: $BUNDLE_DIR" >&2
   exit 1
 fi
 
@@ -183,7 +183,7 @@ count = sum(1 for i in items if i['status'] not in ('up-to-date', 'customized'))
 print(count)
 " "$FINDINGS")
 
-echo "memo-flow-doctor: checking $PROJECT_DIR"
+echo "doctor: checking $PROJECT_DIR"
 echo ""
 
 if [ "$total" -eq 0 ]; then
@@ -225,7 +225,7 @@ if [ "$FIX" = false ]; then
 fi
 
 echo ""
-echo "memo-flow-doctor: applying fixes..."
+echo "doctor: applying fixes..."
 
 python3 -c "
 import json, sys
@@ -266,13 +266,13 @@ for item in inv:
       echo "  fixed    $target"
       ;;
     orphan)
-      echo "  skipped  $target  (orphan — run /setup-memo-flow to reconcile)"
+      echo "  skipped  $target  (orphan — run /memo-flow to reconcile)"
       ;;
     *)
-      echo "  skipped  $target  (route to /setup-memo-flow for config-level changes)"
+      echo "  skipped  $target  (route to /memo-flow for config-level changes)"
       ;;
   esac
 done
 
 echo ""
-echo "memo-flow-doctor: done"
+echo "doctor: done"

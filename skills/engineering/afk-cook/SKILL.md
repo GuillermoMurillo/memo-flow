@@ -13,7 +13,7 @@ A single long Claude session accumulates context across slices, drifts, and even
 
 ## Installation
 
-The runner is installed into the consumer project by `/setup-memo-flow`. After running `/setup-memo-flow` in a project, the wrapper appears at:
+The runner is installed into the consumer project by `/memo-flow`. After running `/memo-flow` in a project, the wrapper appears at:
 
 ```
 <project-root>/.claude/memo-flow/bin/afk-cook
@@ -21,7 +21,7 @@ The runner is installed into the consumer project by `/setup-memo-flow`. After r
 
 Run `./.claude/memo-flow/bin/afk-cook` from the project root.
 
-If that file is missing, re-run `/setup-memo-flow` and confirm AFK installation when prompted.
+If that file is missing, re-run `/memo-flow` and confirm AFK installation when prompted.
 
 ## Usage
 

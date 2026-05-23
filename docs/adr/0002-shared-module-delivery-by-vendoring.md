@@ -14,7 +14,7 @@ Manual dogfood in `~/Projects/memo-flow-testbed` revealed that these modules **n
 3. The CLI copies each listed folder verbatim into `<consumer>/.claude/skills/<skill>/`.
 4. Anything outside a listed skill folder is invisible to the CLI.
 
-`scripts/` is not a skill folder and is not in `plugin.json`. The modules stay in the source repo. When `/setup-memo-flow` ran in the consumer, it couldn't find `scripts/manifest.sh`, improvised inline JSON, and wrote a manifest with the wrong schema shape (`{"version": "unknown", ...}` instead of the PRD-locked `{schema_version: 1, memo_flow_version, config, mutations}`).
+`scripts/` is not a skill folder and is not in `plugin.json`. The modules stay in the source repo. When the installer skill ran in the consumer, it couldn't find `scripts/manifest.sh`, improvised inline JSON, and wrote a manifest with the wrong schema shape (`{"version": "unknown", ...}` instead of the PRD-locked `{schema_version: 1, memo_flow_version, config, mutations}`).
 
 The gap is that PRD #2 designed the modules and the skills that call them, but never designed the **delivery path** from one to the other.
 
@@ -24,13 +24,13 @@ The gap is that PRD #2 designed the modules and the skills that call them, but n
 
 Create `memo-flow-runtime`, a skill whose only job is to hold the shared modules. Other skills declare a dependency on it.
 
-Rejected: the skills CLI has **no dependency resolution**. "Depends on memo-flow-runtime" is just convention. If a consumer installs `setup-memo-flow` and forgets the runtime, things break silently at the first `source` call. The dependency boundary is fictional and unenforced.
+Rejected: the skills CLI has **no dependency resolution**. "Depends on memo-flow-runtime" is just convention. If a consumer installs the installer skill and forgets the runtime, things break silently at the first `source` call. The dependency boundary is fictional and unenforced.
 
 ### B, bootstrap-and-drop
 
-One installer skill (e.g. `setup-memo-flow`) bundles the modules and copies them to a well-known consumer-side path on first run (e.g. `<consumer>/scripts/memo-flow/`). Other skills hardcode that path and `source` from it.
+One installer skill bundles the modules and copies them to a well-known consumer-side path on first run (e.g. `<consumer>/scripts/memo-flow/`). Other skills hardcode that path and `source` from it.
 
-Rejected after consideration. Pros: matches the Unix-idiomatic "install to a shared prefix" pattern. Cons: introduces implicit ordering ("setup-memo-flow must run before any other memo-flow skill"); requires uninstall tracking for the consumer-side files; couples every skill to a shared consumer-side path that the skills CLI knows nothing about; last-writer-wins if two skills are installed from different versions.
+Rejected after consideration. Pros: matches the Unix-idiomatic "install to a shared prefix" pattern. Cons: introduces implicit ordering (installer must run before any other memo-flow skill); requires uninstall tracking for the consumer-side files; couples every skill to a shared consumer-side path that the skills CLI knows nothing about; last-writer-wins if two skills are installed from different versions.
 
 ### C, vendoring (chosen)
 
@@ -62,32 +62,25 @@ _shared-modules/                    # canonical source, NOT shipped
   bundle-inventory.sh
   hook-config.sh
 
-skills/engineering/setup-memo-flow/
+skills/engineering/memo-flow/
   SKILL.md
+  doctor.sh                         # health-check entry script
   modules/                          # vendored copies
     manifest.sh
     marker-fence.sh
     settings-mutator.sh
     user-registry.sh
+    drift-detector.sh
     bundle-inventory.sh
 
-skills/engineering/install-memo-hooks/
+skills/engineering/memo-hooks/
   SKILL.md
-  install-memo-hooks.sh             # entry script, lives with its skill
+  install.sh                        # entry script, lives with its skill
   modules/                          # vendored copies
     manifest.sh
     marker-fence.sh
     settings-mutator.sh
     hook-config.sh
-
-skills/engineering/memo-flow-doctor/
-  SKILL.md
-  memo-flow-doctor.sh               # entry script
-  modules/
-    manifest.sh
-    marker-fence.sh
-    drift-detector.sh
-    bundle-inventory.sh
 
 bin/
   sync-modules.sh                   # copies _shared-modules/ into each skill
@@ -99,9 +92,8 @@ After `npx skills@latest add GuillermoMurillo/memo-flow -a claude-code` and the 
 
 ```
 # Skill bundles (placed by the skills CLI)
-<consumer>/.claude/skills/setup-memo-flow/modules/manifest.sh
-<consumer>/.claude/skills/install-memo-hooks/modules/manifest.sh
-<consumer>/.claude/skills/memo-flow-doctor/modules/manifest.sh
+<consumer>/.claude/skills/memo-flow/modules/manifest.sh
+<consumer>/.claude/skills/memo-hooks/modules/manifest.sh
 
 # Memo-flow runtime artifacts (single-namespace)
 <consumer>/.claude/memo-flow/
@@ -162,7 +154,7 @@ PRD #2 was masked because no test ran the actual install command. Any test that 
 1. Start in a brand-new clean target directory: no `.claude/`, no `CLAUDE.md`, no memo-flow state.
 2. `git init`.
 3. `npx skills@latest add GuillermoMurillo/memo-flow -a claude-code` (or local-checkout equivalent during development).
-4. Run the user-facing skill flow: `/setup-memo-flow`, `/install-memo-hooks`, `/memo-flow-doctor`, etc.
+4. Run the user-facing skill flow: `/memo-flow`, `/memo-hooks`, etc.
 5. Assert end state: `.claude/memo-flow/manifest.json` schema, hook scripts at expected paths, marker-fenced blocks in `CLAUDE.md` / `AGENTS.md` / `.claude/settings.json`, no files written outside `.claude/memo-flow/`.
 
 The "brand-new clean target" requirement is met by a seed repo (e.g. `memo-flow-e2e-target/`) whose only purpose is to be a worktree source. Each e2e test run creates a fresh worktree of the seed → real install runs against it → assertions → worktree torn down. Worktrees give cheap reusable clean state without nuking and recreating directories by hand.
@@ -174,7 +166,7 @@ This replaces the ad-hoc testbed previously kept at `~/Projects/memo-flow-testbe
 ## Consequences
 
 - **No more module-as-`file_written` in the manifest.** Library modules live inside their skill folder, so they are part of the skill, not files the skill writes elsewhere. `skills remove <skill>` deletes them with the skill. The manifest's `file_written` mutations cover only things the skill writes *outside* its own folder, all of which land under `.claude/memo-flow/` (config, hooks, the afk-cook wrapper) or as marker-fenced edits to `CLAUDE.md`, `AGENTS.md`, and `.claude/settings.json`.
-- **No install ordering.** Each skill is independently installable and runnable. Removing `setup-memo-flow` does not break `install-memo-hooks`.
+- **No install ordering.** Each skill is independently installable and runnable. Removing `/memo-flow` does not break `memo-hooks`.
 - **No consumer-side shared path.** The consumer's filesystem layout matches what the skills CLI naturally produces. Nothing to document, manage, or clean up.
 - **Per-skill version pinning.** If a consumer installs two skills from different versions of memo-flow, each runs its own pinned copy of `manifest.sh`. This matches how the skills CLI thinks about distribution.
 - **PR diff noise on module edits.** A one-line fix to `_shared-modules/manifest.sh` becomes a 5-file commit after sync. Acceptable, arguably useful: reviewers see the full blast radius.
@@ -182,4 +174,6 @@ This replaces the ad-hoc testbed previously kept at `~/Projects/memo-flow-testbe
 
 ## Rename note (2026-05-23)
 
-The `install-memo-hooks` skill was renamed to `memo-hooks` (PR #33, closes PRD #29). The skill folder moved from `skills/engineering/install-memo-hooks/` to `skills/engineering/memo-hooks/`, and the entry script moved from `install-memo-hooks.sh` to `install.sh` inside that folder. The vendored module map in `bin/sync-modules.sh` was updated to replace `install-memo-hooks` with `memo-hooks` as a consumer for all four shared modules (`manifest.sh`, `marker-fence.sh`, `settings-mutator.sh`, `user-registry.sh`) and for `hook-config.sh`. The source layout diagram above shows the pre-rename state; the post-rename layout replaces `install-memo-hooks/` with `memo-hooks/` and `install-memo-hooks.sh` with `install.sh` throughout.
+The `install-memo-hooks` skill was renamed to `memo-hooks` (PR #33, closes PRD #29). The skill folder moved from `skills/engineering/install-memo-hooks/` to `skills/engineering/memo-hooks/`, and the entry script moved from `install-memo-hooks.sh` to `install.sh` inside that folder. The vendored module map in `bin/sync-modules.sh` was updated to replace `install-memo-hooks` with `memo-hooks` as a consumer for all four shared modules (`manifest.sh`, `marker-fence.sh`, `settings-mutator.sh`, `user-registry.sh`) and for `hook-config.sh`. The source layout diagram above reflects the post-rename state.
+
+The two original base-tier skills — the installer and the doctor — were consolidated into a single state-routed `/memo-flow` skill (PR #35, closes PRD #8). Their folders were removed and their logic merged into `skills/engineering/memo-flow/` — fresh install, health check, and repair are now branches within one skill. The doctor entry script was renamed to `doctor.sh`. The vendored module map was updated to replace both old consumers with `memo-flow`. The source layout diagram above reflects the post-consolidation state.

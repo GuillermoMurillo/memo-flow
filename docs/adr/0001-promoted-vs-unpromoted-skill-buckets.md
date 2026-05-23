@@ -5,7 +5,7 @@
 
 ## Context
 
-This repo is a published source of Claude Code skills. Consumers install via `/setup-memo-flow`, which writes an `## Agent skills` block into their `AGENTS.md` / `CLAUDE.md` pointing at this repo's skill paths.
+This repo is a published source of Claude Code skills. Consumers install via `/memo-flow`, which writes an `## Agent skills` block into their `AGENTS.md` / `CLAUDE.md` pointing at this repo's skill paths.
 
 We need a way to develop new skills, retire old ones, and experiment with personal variants **without contaminating what consumers see**. A long-lived feature branch is the wrong tool: it diverges from `main`, blocks small unrelated improvements, and pushes "is this shippable?" into a binary merge decision rather than a per-skill one.
 
@@ -18,7 +18,7 @@ Separation is by folder, not branch. `skills/` has two kinds of bucket:
 
 Graduation = moving a skill folder + adding its path to `plugin.json` + listing it in the bucket's `README.md`. Demotion = the reverse.
 
-`.claude-plugin/plugin.json` is the single source of truth for what's promoted. README and `/setup-memo-flow` must agree with it.
+`.claude-plugin/plugin.json` is the single source of truth for what's promoted. README and `/memo-flow` must agree with it.
 
 ## Consequences
 
