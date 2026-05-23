@@ -8,7 +8,6 @@ _shared-modules/drift-detector.sh     # exercised transitively by memo-flow-doct
 _shared-modules/hook-config.sh        # exercised transitively by install/uninstall-memo-hooks; standalone test deferred
 _shared-modules/marker-fence.sh       # exercised transitively by setup-memo-flow; standalone test deferred
 _shared-modules/settings-mutator.sh   # exercised transitively by install-memo-hooks integration test; standalone test deferred
-_shared-modules/user-registry.sh      # exercised transitively by install-memo-hooks integration test; standalone test deferred
 
 # skill entry scripts whose install journey is covered by the e2e test
 skills/engineering/memo-flow-doctor/memo-flow-doctor.sh      # integration test deferred; doctor is diagnostic-only, no side effects to assert

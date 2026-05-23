@@ -21,6 +21,11 @@
 #
 #   get <file> <project-path>
 #     Print the project entry as JSON, or empty string if not found.
+#
+#   prune-missing <file>
+#     Remove entries whose path no longer exists on disk.
+#     Prints "pruned N entries (M kept)" to stdout.
+#     No-op (with summary) if file is absent or has no projects.
 
 set -euo pipefail
 
@@ -183,6 +188,40 @@ if matches:
 else:
     print('')
 "
+    ;;
+
+  prune-missing)
+    file="${2:-}"
+    if [ -z "$file" ]; then
+      echo "usage: user-registry.sh prune-missing <file>" >&2
+      exit 1
+    fi
+    if [ ! -f "$file" ]; then
+      echo "pruned 0 entries (0 kept)"
+      exit 0
+    fi
+    dir="$(dirname "$file")"
+    tmpfile="$(mktemp "$dir/.registry-tmp-XXXXXX.json")"
+    python3 -c "
+import json, os, sys
+
+try:
+    data = json.load(open('$file'))
+except Exception as e:
+    print(f'user-registry: invalid JSON: {e}', file=sys.stderr)
+    sys.exit(1)
+
+projects = data.get('projects', [])
+kept = [p for p in projects if os.path.exists(p.get('path', ''))]
+pruned = len(projects) - len(kept)
+data['projects'] = kept
+
+with open('$tmpfile', 'w') as f:
+    json.dump(data, f, indent=2)
+    f.write('\n')
+os.rename('$tmpfile', '$file')
+print(f'pruned {pruned} entries ({len(kept)} kept)')
+" || { rm -f "$tmpfile"; exit 1; }
     ;;
 
   *)
