@@ -13,9 +13,9 @@
 #      NOTE: the `skills` CLI accepts GitHub paths and full URLs but has no
 #      local-checkout flag. This simulation is the most faithful approximation
 #      available until the CLI adds local-source support.
-#   3. Invoke the underlying manifest module the way setup-memo-flow would call
+#   3. Invoke the underlying manifest module the way memo-flow would call
 #      it (non-interactive path). Per ADR 0002, the module should live at
-#      <target>/.claude/skills/setup-memo-flow/modules/manifest.sh after install.
+#      <target>/.claude/skills/memo-flow/modules/manifest.sh after install.
 #   4. Assert end state:
 #      - .claude/memo-flow/manifest.json has schema_version: 1
 #      - .claude/memo-flow/manifest.json carries memo_flow_version, config, mutations fields
@@ -131,27 +131,27 @@ done
 echo "  installed $INSTALLED skill(s) into consumer"
 echo ""
 
-# ── test 1: manifest module vendored in setup-memo-flow ──────────────────────
+# ── test 1: manifest module vendored in memo-flow ────────────────────────────
 #
 # Per ADR 0002, each skill that calls manifest.sh must vendor its own copy
 # inside <skill>/modules/manifest.sh. After consumer install, the module must
 # be accessible at:
-#   .claude/skills/setup-memo-flow/modules/manifest.sh
+#   .claude/skills/memo-flow/modules/manifest.sh
 #
-# Without this, setup-memo-flow's SKILL.md instruction to call
+# Without this, memo-flow's SKILL.md instruction to call
 # `scripts/manifest.sh` will fail silently and no manifest will be written.
 
 echo "--- test: manifest module vendored in consumer install ---"
 
-MANIFEST_MODULE="$SCRATCH/.claude/skills/setup-memo-flow/modules/manifest.sh"
+MANIFEST_MODULE="$SCRATCH/.claude/skills/memo-flow/modules/manifest.sh"
 
 if [[ -f "$MANIFEST_MODULE" ]]; then
-  ok "manifest module present at .claude/skills/setup-memo-flow/modules/manifest.sh"
+  ok "manifest module present at .claude/skills/memo-flow/modules/manifest.sh"
 else
   fail \
     "manifest module NOT found in consumer install" \
-    "expected: .claude/skills/setup-memo-flow/modules/manifest.sh
-        setup-memo-flow's SKILL.md calls 'scripts/manifest.sh' which exists only
+    "expected: .claude/skills/memo-flow/modules/manifest.sh
+        memo-flow's SKILL.md calls 'scripts/manifest.sh' which exists only
         in the source repo, not in the consumer install. ADR 0002 fixes this by
         vendoring the module into the skill folder. (PRD #2 bug)"
 fi
@@ -160,12 +160,12 @@ echo ""
 
 # ── test 2: install journey produces manifest with correct schema ─────────────
 #
-# After a successful install + /setup-memo-flow run, the manifest at
+# After a successful install + /memo-flow run, the manifest at
 # .claude/memo-flow/manifest.json must match the PRD-locked schema:
 #   { "schema_version": 1, "memo_flow_version": "...", "config": {...}, "mutations": [...] }
 #
 # We invoke the manifest module directly (the non-interactive entry point for
-# what setup-memo-flow does in step 5 of its SKILL.md process).
+# what memo-flow does in step 5 of its SKILL.md process).
 #
 # If the module is missing: no manifest is created → assertion fails and
 # clearly names the manifest-schema mismatch as the root cause.
@@ -183,8 +183,8 @@ fi
 if [[ ! -f "$MANIFEST_FILE" ]]; then
   fail \
     "manifest-schema mismatch: manifest.json was not created" \
-    "the manifest module at .claude/skills/setup-memo-flow/modules/manifest.sh
-        is absent from the consumer install, so setup-memo-flow cannot write
+    "the manifest module at .claude/skills/memo-flow/modules/manifest.sh
+        is absent from the consumer install, so memo-flow cannot write
         a manifest. consumers end up with no install record or an ad-hoc file
         with the wrong schema shape. this is the PRD #2 bug described in ADR 0002."
 else
@@ -230,7 +230,7 @@ echo ""
 # Run the entry script from the consumer install non-interactively.
 # Per ADR 0002, the entry script lives at:
 #   .claude/skills/memo-hooks/install.sh
-# This mirrors the real user journey: after /setup-memo-flow, the user runs
+# This mirrors the real user journey: after /memo-flow, the user runs
 # /memo-hooks to install the hooks tier.
 
 INSTALL_HOOKS_SH="$SCRATCH/.claude/skills/memo-hooks/install.sh"

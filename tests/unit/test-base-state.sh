@@ -29,8 +29,8 @@ FENCE_END="<!-- END memo-flow:agent-skills -->"
 
 # helpers
 seed_skills() {
-  mkdir -p "$SKILLS_DIR/setup-memo-flow"
-  touch "$SKILLS_DIR/setup-memo-flow/SKILL.md"
+  mkdir -p "$SKILLS_DIR/memo-flow"
+  touch "$SKILLS_DIR/memo-flow/SKILL.md"
 }
 
 clear_skills() {
