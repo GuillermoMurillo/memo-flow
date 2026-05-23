@@ -430,15 +430,25 @@ will fill in exactly what is missing without overwriting files that are already 
 
 ### C2. Ask the user
 
-One `AskUserQuestion` (single-select):
+One `AskUserQuestion` (single-select). Pick the template that matches the detected state — never paraphrase, never merge them with conditional substitution.
+
+**For `broken_no_skills`, ask:**
 
 ```
 question: "How do you want to proceed?"
 
 options:
-  - Re-run installer — {for broken_no_skills: 'reinstall skills first (see note below), then routes
-    to fresh-install flow'} / {for broken_no_scaffold: 'routes to fresh-install flow, fills in
-    missing pieces idempotently without overwriting existing content'}
+  - Re-run installer — reinstall skills first (see note below), then routes to the fresh-install flow
+  - Cancel — leave things as-is; re-run /memo-flow when you're ready
+```
+
+**For `broken_no_scaffold`, ask:**
+
+```
+question: "How do you want to proceed?"
+
+options:
+  - Re-run installer — routes to the fresh-install flow; fills in missing pieces idempotently without overwriting existing content
   - Cancel — leave things as-is; re-run /memo-flow when you're ready
 ```
 
