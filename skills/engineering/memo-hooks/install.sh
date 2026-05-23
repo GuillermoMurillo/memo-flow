@@ -281,17 +281,121 @@ _prompt_hook_update() {
   done
 }
 
+_get_broken_settings_entries() {
+  if [ ! -f "$SETTINGS_JSON" ]; then
+    echo "[]"
+    return
+  fi
+  python3 -c "
+import json, sys
+try:
+    data = json.load(open('$SETTINGS_JSON'))
+except Exception:
+    print('[]')
+    sys.exit(0)
+
+broken = []
+for event, event_groups in data.get('hooks', {}).items():
+    for group in event_groups:
+        for h in group.get('hooks', []):
+            hid = h.get('id', '')
+            if hid.startswith('memo-flow:') and h.get('type') == 'stdin':
+                broken.append({'event': event, 'id': hid})
+
+print(json.dumps(broken))
+" 2>/dev/null || echo "[]"
+}
+
+_repair_broken_settings_entries() {
+  local sf="$SETTINGS_JSON"
+  local tmp_dir
+  tmp_dir="$(dirname "$sf")"
+  python3 - "$sf" "$tmp_dir" <<'PYEOF'
+import json, os, sys, tempfile
+
+settings_file, tmp_dir = sys.argv[1], sys.argv[2]
+
+try:
+    data = json.load(open(settings_file))
+except Exception as e:
+    print(f"install-memo-hooks: could not read settings file: {e}", file=sys.stderr)
+    sys.exit(1)
+
+changed = 0
+for event_groups in data.get("hooks", {}).values():
+    for group in event_groups:
+        for h in group.get("hooks", []):
+            if h.get("id", "").startswith("memo-flow:") and h.get("type") == "stdin":
+                h["type"] = "command"
+                changed += 1
+
+if changed > 0:
+    fd, tmppath = tempfile.mkstemp(dir=tmp_dir, prefix=".settings-repair-", suffix=".json")
+    try:
+        with os.fdopen(fd, "w") as f:
+            json.dump(data, f, indent=2)
+            f.write("\n")
+        os.rename(tmppath, settings_file)
+    except Exception:
+        os.unlink(tmppath)
+        raise
+
+print(changed)
+PYEOF
+}
+
 if [ "$(_has_hook_mutations)" = "yes" ]; then
   drifted_json=$(_get_drifted_hooks)
   drifted_count=$(python3 -c "import json,sys; print(len(json.loads(sys.argv[1])))" "$drifted_json")
 
-  if [ "$drifted_count" -eq 0 ]; then
+  broken_json=$(_get_broken_settings_entries)
+  broken_count=$(python3 -c "import json,sys; print(len(json.loads(sys.argv[1])))" "$broken_json")
+
+  if [ "$drifted_count" -eq 0 ] && [ "$broken_count" -eq 0 ]; then
     echo "install-memo-hooks: all hooks up to date"
     exit 0
   fi
 
+  if [ "$CHECK_ONLY" = true ]; then
+    if [ "$broken_count" -gt 0 ]; then
+      echo "install-memo-hooks: WARNING — $broken_count memo-flow settings entries have type=stdin (broken); re-run /install-memo-hooks to repair"
+    fi
+    if [ "$drifted_count" -gt 0 ]; then
+      echo "install-memo-hooks: $drifted_count hook(s) have updates pending — run /install-memo-hooks to review"
+    fi
+    exit 0
+  fi
+
   if [ "$NON_INTERACTIVE" = true ]; then
-    echo "install-memo-hooks: $drifted_count hook(s) have updates pending — run /install-memo-hooks to review"
+    if [ "$broken_count" -gt 0 ]; then
+      repaired=$(_repair_broken_settings_entries)
+      echo "install-memo-hooks: repaired $repaired settings entries (type=stdin → type=command)"
+    fi
+    if [ "$drifted_count" -gt 0 ]; then
+      echo "install-memo-hooks: $drifted_count hook(s) have updates pending — run /install-memo-hooks to review"
+    fi
+    exit 0
+  fi
+
+  # interactive mode
+  if [ "$broken_count" -gt 0 ]; then
+    echo ""
+    echo "install-memo-hooks: WARNING — $broken_count memo-flow settings entries have type=stdin (broken schema)"
+    echo "  These hooks will be silently ignored by Claude Code."
+    printf "  Repair now? [Y/n] "
+    read -r choice || choice="y"
+    choice=$(echo "$choice" | tr '[:upper:]' '[:lower:]')
+    if [[ "$choice" != "n" ]]; then
+      repaired=$(_repair_broken_settings_entries)
+      echo "  repaired $repaired settings entries (type=stdin → type=command)"
+    else
+      echo "  skipped — hooks will remain broken until repaired"
+    fi
+  fi
+
+  if [ "$drifted_count" -eq 0 ]; then
+    echo ""
+    echo "install-memo-hooks: done"
     exit 0
   fi
 
