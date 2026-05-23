@@ -17,12 +17,24 @@ Run the CLI:
 
 **No args** — opens a TUI editor for `.claude/memo-flow/config.json`. Uses `gum` if it is on `PATH`; falls back to `$EDITOR` otherwise.
 
-**`--set <hook>=<true|false>`** — non-interactive toggle. Safe to run from scripts.
+**`--set <hook>=<true|false>`** — shorthand to toggle a hook's `enabled` flag.
 
 ```bash
 .claude/memo-flow/bin/memo-hooks --set context-monitor=false
 .claude/memo-flow/bin/memo-hooks --set skill-leaderboard=true
 ```
+
+**`--set <hook>.<field>=<value>`** — set any scalar field on a hook (string, int, or bool). Use this to change `context-monitor`'s `mode` and `threshold` non-interactively, including mid-session — the hook re-reads `config.json` on every prompt.
+
+```bash
+.claude/memo-flow/bin/memo-hooks --set context-monitor.mode=nag
+.claude/memo-flow/bin/memo-hooks --set context-monitor.threshold=1000
+.claude/memo-flow/bin/memo-hooks --set context-monitor.enabled=false
+```
+
+Value coercion: `true`/`false` → bool, all-digits → int, everything else → string.
+
+`context-monitor` modes: `notify` (default), `notify-once`, `nag`, `auto-handoff`. The old names `inject-context`, `remind-once`, `remind-until`, `auto` still work but warn that they are deprecated.
 
 **`leaderboard [N]`** — prints the top N skills by invocation count from `~/.claude/memo-flow/skill-usage.json`. Defaults to top 10.
 
