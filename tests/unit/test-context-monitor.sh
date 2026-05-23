@@ -126,6 +126,34 @@ else
   fail "notify-once did not re-fire for new transcript" "stdout: $(cat "$WORK/notify-once-3.out")"
 fi
 
+# ── auto-handoff: JSON envelope instructing model to call /handoff ───────────
+cat > "$WORK/cfg-auto-handoff.json" <<JSON
+{
+  "context-monitor": {
+    "enabled": true,
+    "threshold": 100,
+    "mode": "auto-handoff"
+  }
+}
+JSON
+MEMO_FLOW_CONFIG="$WORK/cfg-auto-handoff.json" bash "$HOOK" <<<"$EVENT" \
+  >"$WORK/auto-handoff.out" 2>"$WORK/auto-handoff.err"
+ah_exit=$?
+[[ "$ah_exit" == "0" ]] && ok "auto-handoff exits 0 (non-blocking)" || fail "auto-handoff exit" "got $ah_exit"
+
+if python3 -c "
+import json
+data = json.load(open('$WORK/auto-handoff.out'))
+ctx = data['hookSpecificOutput']['additionalContext']
+assert data['hookSpecificOutput']['hookEventName'] == 'UserPromptSubmit'
+assert '/handoff' in ctx, ctx
+assert 'Stop' in ctx or 'stop' in ctx, ctx
+" 2>/dev/null; then
+  ok "auto-handoff JSON instructs model to call /handoff and stop"
+else
+  fail "auto-handoff JSON wrong" "stdout: $(cat "$WORK/auto-handoff.out")"
+fi
+
 # ── remind-once: stderr, exit 0 (CLI-only visibility) ────────────────────────
 run_with_mode "remind-once" || true
 [[ "$(cat "$WORK/remind-once.exit")" == "0" ]] && ok "remind-once exits 0" || fail "remind-once exit" "got $(cat "$WORK/remind-once.exit")"

@@ -163,6 +163,24 @@ PYEOF
     exit 0
     ;;
 
+  auto-handoff)
+    # Tell the model to wrap up: stop current work, call /handoff with an
+    # inferred one-line intent, then instruct the user to start fresh. The
+    # model reads chat history and supplies the argument; the hook can't.
+    auto_msg="context-monitor: ~${token_count} tokens (threshold: ${threshold}). **Stop current work.** Call the \`/handoff\` skill and pass a one-line intent summarizing what we were just doing. Then tell the user to start a fresh session."
+    python3 - "$auto_msg" <<'PYEOF'
+import json, sys
+msg = sys.argv[1]
+print(json.dumps({
+    "hookSpecificOutput": {
+        "hookEventName": "UserPromptSubmit",
+        "additionalContext": msg,
+    }
+}))
+PYEOF
+    exit 0
+    ;;
+
   inject-context)
     # Claude Code expects UserPromptSubmit hooks to return JSON with
     # `hookSpecificOutput.additionalContext` to inject context the model can
