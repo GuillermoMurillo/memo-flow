@@ -370,7 +370,7 @@ if [ ! -f "$config_json" ]; then
   "context-monitor": {
     "enabled": true,
     "threshold": 99000,
-    "mode": "auto"
+    "mode": "inject-context"
   },
   "skill-leaderboard": {
     "enabled": true,

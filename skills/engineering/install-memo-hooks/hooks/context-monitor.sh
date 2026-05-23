@@ -1,12 +1,18 @@
 #!/usr/bin/env bash
 # context-monitor.sh — UserPromptSubmit hook: warn (or block) when context nears limit.
 #
-# Reads a UserPromptSubmit event JSON from stdin. Compares transcript_token_count
-# to the configured threshold. Behavior depends on mode:
+# Reads a UserPromptSubmit event JSON from stdin. Estimates token count from
+# the transcript file (Claude Code 2.1.92 doesn't send transcript_token_count;
+# bytes/4 is within ~10-15% of real count). Behavior depends on mode:
 #
-#   remind-once   — exits 0, single stderr line (advisory; no state tracking in v1)
-#   remind-until  — exits 0, stderr line every turn over threshold
-#   auto          — writes a handoff file and exits 2 (blocking) to surface the message
+#   inject-context — exits 0, emits JSON with hookSpecificOutput.additionalContext
+#                    so the model sees the warning. Works in any UI (CLI, web,
+#                    remote-control). Default and recommended.
+#   remind-once    — exits 0, single stderr line. CLI-visible only — stderr
+#                    from non-blocking hooks does NOT surface in claude.ai web.
+#   remind-until   — exits 0, stderr line every turn over threshold (CLI-only).
+#   auto           — writes a handoff file and exits 2 (blocking). Surfaces in
+#                    any UI but blocks the prompt entirely.
 #
 # Config location: $MEMO_FLOW_CONFIG (env) or ./.claude/memo-flow/config.json (cwd)
 # Config key: "context-monitor"
@@ -29,7 +35,7 @@ config_file = sys.argv[1]
 defaults = {
     "enabled": True,
     "threshold": 99000,
-    "mode": "auto",
+    "mode": "inject-context",
     "handoff_dir": None,
 }
 
@@ -61,7 +67,7 @@ if [ "$enabled" = "False" ]; then
 fi
 
 threshold=$(python3 -c "import json,sys; print(json.loads(sys.argv[1]).get('threshold', 99000))" "$config_json")
-mode=$(python3 -c "import json,sys; print(json.loads(sys.argv[1]).get('mode', 'auto'))" "$config_json")
+mode=$(python3 -c "import json,sys; print(json.loads(sys.argv[1]).get('mode', 'inject-context'))" "$config_json")
 handoff_dir=$(python3 -c "
 import json, sys, os
 cfg = json.loads(sys.argv[1])
@@ -76,14 +82,28 @@ else:
 
 event=$(cat)
 
-token_count=$(python3 -c "
-import json, sys
+# Estimate token count from the transcript file. Claude Code's UserPromptSubmit
+# event payload does not include transcript_token_count (verified on 2.1.92);
+# only transcript_path is provided. We approximate tokens as bytes / 4, which
+# tracks actual token count within ~10-15% for English + code transcripts.
+token_count=$(python3 - "$event" <<'PYEOF'
+import json, os, sys
 try:
     data = json.loads(sys.argv[1])
-    print(int(data.get('transcript_token_count', 0)))
+    # Prefer explicit count if a future Claude Code version ever sends it.
+    tc = data.get("transcript_token_count")
+    if isinstance(tc, int) and tc > 0:
+        print(tc)
+        sys.exit(0)
+    path = data.get("transcript_path")
+    if path and os.path.exists(path):
+        print(os.path.getsize(path) // 4)
+    else:
+        print(0)
 except Exception:
     print(0)
-" "$event")
+PYEOF
+)
 
 # ── below threshold → silent pass ─────────────────────────────────────────────
 
@@ -99,6 +119,26 @@ case "$mode" in
 
   remind-once|remind-until)
     echo "$reminder_msg" >&2
+    exit 0
+    ;;
+
+  inject-context)
+    # Claude Code expects UserPromptSubmit hooks to return JSON with
+    # `hookSpecificOutput.additionalContext` to inject context the model can
+    # see. Plain text on stdout is logged but not surfaced to the model
+    # (debug log: "Hook output does not start with {, treating as plain text").
+    # This mode works in any UI (CLI, web, remote-control) because the warning
+    # arrives as model-visible context, not stderr.
+    python3 - "$reminder_msg" <<'PYEOF'
+import json, sys
+msg = sys.argv[1]
+print(json.dumps({
+    "hookSpecificOutput": {
+        "hookEventName": "UserPromptSubmit",
+        "additionalContext": msg,
+    }
+}))
+PYEOF
     exit 0
     ;;
 
