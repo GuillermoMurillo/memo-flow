@@ -179,3 +179,7 @@ This replaces the ad-hoc testbed previously kept at `~/Projects/memo-flow-testbe
 - **Per-skill version pinning.** If a consumer installs two skills from different versions of memo-flow, each runs its own pinned copy of `manifest.sh`. This matches how the skills CLI thinks about distribution.
 - **PR diff noise on module edits.** A one-line fix to `_shared-modules/manifest.sh` becomes a 5-file commit after sync. Acceptable, arguably useful: reviewers see the full blast radius.
 - **Contributor discipline required.** People must edit `_shared-modules/` and run the sync. CI catches direct edits to vendored copies. Documented in `CONTRIBUTING` and in the sync script's own header.
+
+## Rename note (2026-05-23)
+
+The `install-memo-hooks` skill was renamed to `memo-hooks` (PR #33, closes PRD #29). The skill folder moved from `skills/engineering/install-memo-hooks/` to `skills/engineering/memo-hooks/`, and the entry script moved from `install-memo-hooks.sh` to `install.sh` inside that folder. The vendored module map in `bin/sync-modules.sh` was updated to replace `install-memo-hooks` with `memo-hooks` as a consumer for all four shared modules (`manifest.sh`, `marker-fence.sh`, `settings-mutator.sh`, `user-registry.sh`) and for `hook-config.sh`. The source layout diagram above shows the pre-rename state; the post-rename layout replaces `install-memo-hooks/` with `memo-hooks/` and `install-memo-hooks.sh` with `install.sh` throughout.

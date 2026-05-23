@@ -14,7 +14,7 @@ Scaffold a new hook conforming to memo-flow bundle conventions. The skill interr
 Ask the author each question in order. Do not skip any. Do not write files until all answers are collected.
 
 **Hook name** (kebab-case, no `.sh` suffix, e.g. `context-monitor`):
-- Must be unique among hooks in `skills/engineering/install-memo-hooks/hooks/`
+- Must be unique among hooks in `skills/engineering/memo-hooks/hooks/`
 
 **Trigger event** — pick one:
 - `PreToolUse` — fires before any tool call; can block (exit 2)
@@ -55,7 +55,7 @@ Before scaffolding, verify:
 - If exit-code contract is `blocking`, the script must emit a message before exiting non-zero
 - If state is `read-write`, the script must use a lock file (flock) or atomic temp-and-rename
 - If a `tool/pattern matcher` is provided, confirm the trigger is `PreToolUse` or `PostToolUse`
-- The hook name does not already exist in `skills/engineering/install-memo-hooks/hooks/`
+- The hook name does not already exist in `skills/engineering/memo-hooks/hooks/`
 
 Report any inconsistency and ask the author to clarify before proceeding.
 
@@ -65,7 +65,7 @@ Produce all four outputs. Write them in order. Do not omit any.
 
 #### 3a. Hook script
 
-Path: `skills/engineering/install-memo-hooks/hooks/<name>.sh`
+Path: `skills/engineering/memo-hooks/hooks/<name>.sh`
 
 Follow this template exactly (replace `<NAME>`, `<EVENT>`, etc.):
 
@@ -134,7 +134,7 @@ event=$(cat)
 
 #### 3b. hook-config.sh default block
 
-Add the hook's entry to `_DEFAULTS` in `modules/hook-config.sh`:
+Add the hook's entry to `_DEFAULTS` in `memo-hooks/modules/hook-config.sh`:
 
 ```json
 "<name>": {
@@ -146,7 +146,7 @@ Add the hook's entry to `_DEFAULTS` in `modules/hook-config.sh`:
 
 #### 3c. settings.json template entry
 
-The entry that `install-memo-hooks.sh` will register. Show the exact JSON:
+The entry that `install.sh` will register. Show the exact JSON:
 
 ```json
 {
@@ -158,11 +158,11 @@ The entry that `install-memo-hooks.sh` will register. Show the exact JSON:
 
 Registered under the hook's trigger event key in `.claude/settings.json`.
 
-Show the `install-memo-hooks.sh` snippet the author must add (the `"$SETTINGS_SH" insert` call and the `manifest_append_if_absent` call).
+Show the `install.sh` snippet the author must add (the `"$SETTINGS_SH" insert` call and the `manifest_append_if_absent` call).
 
 #### 3d. README row
 
-Add a row to `skills/engineering/install-memo-hooks/SKILL.md` under "What gets installed":
+Add a row to `skills/engineering/memo-hooks/SKILL.md` under "What gets installed":
 
 ```
 **`<name>.sh`** (<EVENT> hook): <one-line description>. Disabled via `config.json` toggle. Fail-open if config is missing.
@@ -174,14 +174,17 @@ Show the author a summary of all four outputs. Ask: "Write these files? [y/N]". 
 
 ### 5. Write files
 
-Write the hook script, update hook-config.sh `_DEFAULTS`, and update install-memo-hooks SKILL.md. Note that `settings.json` template and `install-memo-hooks.sh` snippets are shown to the author but applied manually (they require install-time decisions).
+Write the hook script, update hook-config.sh `_DEFAULTS`, and update memo-hooks SKILL.md. Note that `settings.json` template and `install.sh` snippets are shown to the author but applied manually (they require install-time decisions).
 
 ### 6. Done
 
 Confirm the four outputs were written or shown. Remind the author:
 - Add an integration test under `tests/` for the new hook
-- Update `skills/engineering/install-memo-hooks/install-memo-hooks.sh` to register the new settings entry
+- Update `skills/engineering/memo-hooks/install.sh` to register the new settings entry
+- Add a description row for the new hook in `memo-hooks/SKILL.md` Branch A2 (the per-hook opt-in `multiSelect` prompt) so users see it during fresh install
 - Run `bash bin/run-tests.sh` to verify end-to-end
+
+> **Opt-in flow:** once the hook is registered via `install.sh`, it automatically participates in the Branch A2 `multiSelect` prompt the next time a user runs `/memo-hooks` on a fresh project. Adding a description row to `memo-hooks/SKILL.md` Branch A2 is required so the entry is populated and meaningful — an undescribed hook appears in the list but gives users no basis for choosing it.
 
 ## Notes
 

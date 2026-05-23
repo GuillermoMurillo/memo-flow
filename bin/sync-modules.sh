@@ -27,13 +27,13 @@ SKILLS_DIR="$REPO_ROOT/skills/engineering"
 # When a skill starts using a new module, add it here. When a skill stops,
 # remove it. The sync script is the single declaration of who consumes what.
 CONSUMER_PAIRS=(
-  "manifest.sh:setup-memo-flow install-memo-hooks uninstall-memo-flow uninstall-memo-hooks memo-flow-doctor"
-  "marker-fence.sh:setup-memo-flow install-memo-hooks uninstall-memo-flow uninstall-memo-hooks memo-flow-doctor"
-  "settings-mutator.sh:setup-memo-flow install-memo-hooks uninstall-memo-flow uninstall-memo-hooks"
-  "user-registry.sh:setup-memo-flow install-memo-hooks uninstall-memo-flow uninstall-memo-hooks"
+  "manifest.sh:setup-memo-flow memo-hooks uninstall-memo-flow uninstall-memo-hooks memo-flow-doctor"
+  "marker-fence.sh:setup-memo-flow memo-hooks uninstall-memo-flow uninstall-memo-hooks memo-flow-doctor"
+  "settings-mutator.sh:setup-memo-flow memo-hooks uninstall-memo-flow uninstall-memo-hooks"
+  "user-registry.sh:setup-memo-flow memo-hooks uninstall-memo-flow uninstall-memo-hooks"
   "drift-detector.sh:memo-flow-doctor"
   "bundle-inventory.sh:setup-memo-flow memo-flow-doctor"
-  "hook-config.sh:install-memo-hooks uninstall-memo-hooks memo-hooks"
+  "hook-config.sh:uninstall-memo-hooks memo-hooks"
 )
 
 MODE="write"

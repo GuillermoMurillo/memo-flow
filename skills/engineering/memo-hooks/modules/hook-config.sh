@@ -23,16 +23,16 @@
 
 set -euo pipefail
 
-# Default config for known hooks (all DISABLED — users opt in per hook).
+# Default config for known hooks (all enabled).
 # Used when config.json is missing or unparseable.
 _DEFAULTS='{
   "context-monitor": {
-    "enabled": false,
+    "enabled": true,
     "threshold": 99000,
-    "mode": "notify"
+    "mode": "auto"
   },
   "skill-leaderboard": {
-    "enabled": false,
+    "enabled": true,
     "output_file": "~/.claude/skill-stats.json"
   }
 }'

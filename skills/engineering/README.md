@@ -4,7 +4,7 @@ Promoted engineering skills. Listed in root `README.md` and `.claude-plugin/plug
 
 - [afk-cook](afk-cook/SKILL.md): bash-loop runner for unattended fresh-context execution of `ready-for-agent` issues. Installed into your project by `/setup-memo-flow`.
 - [diagnose](diagnose/SKILL.md): investigate a bug or unexpected behavior; build a hypothesis tree, narrow with cheap probes.
-- [install-memo-hooks](install-memo-hooks/SKILL.md): install the memo-flow hooks tier (skill-leaderboard tracer hook + config) into a project.
+- [memo-hooks](memo-hooks/SKILL.md): install, update, and manage the memo-flow hooks tier (skill-leaderboard tracer hook + config) in a project.
 - [uninstall-memo-hooks](uninstall-memo-hooks/SKILL.md): reverse every hooks-tier mutation and drop the hooks tier from the registry.
 - [grill-with-docs](grill-with-docs/SKILL.md): interrogate a design or implementation against authoritative docs to surface gaps.
 - [improve-codebase-architecture](improve-codebase-architecture/SKILL.md): propose architectural refactors using deep-module heuristics.
