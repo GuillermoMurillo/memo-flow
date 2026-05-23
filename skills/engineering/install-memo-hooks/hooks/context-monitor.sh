@@ -77,6 +77,15 @@ if d:
 else:
     print(os.path.expanduser('~/.claude/memo-flow/handoffs'))
 " "$config_json")
+state_dir=$(python3 -c "
+import json, sys, os
+cfg = json.loads(sys.argv[1])
+d = cfg.get('state_dir')
+if d:
+    print(os.path.expanduser(str(d)))
+else:
+    print(os.path.expanduser('~/.claude/memo-flow/state'))
+" "$config_json")
 
 # ── read event from stdin ─────────────────────────────────────────────────────
 
@@ -105,6 +114,15 @@ except Exception:
 PYEOF
 )
 
+transcript_path=$(python3 -c "
+import json, sys
+try:
+    data = json.loads(sys.argv[1])
+    print(data.get('transcript_path', '') or '')
+except Exception:
+    print('')
+" "$event")
+
 # ── below threshold → silent pass ─────────────────────────────────────────────
 
 if [ "$token_count" -lt "$threshold" ] 2>/dev/null; then
@@ -119,6 +137,29 @@ case "$mode" in
 
   remind-once|remind-until)
     echo "$reminder_msg" >&2
+    exit 0
+    ;;
+
+  notify-once)
+    # Fires the JSON envelope once per transcript. Sentinel keyed by a hash of
+    # transcript_path; a new session (new transcript) gets a fresh notification.
+    sentinel_hash=$(printf '%s' "$transcript_path" | shasum | cut -c1-16)
+    sentinel="$state_dir/notify-once-${sentinel_hash}.flag"
+    if [ -e "$sentinel" ]; then
+      exit 0
+    fi
+    mkdir -p "$state_dir"
+    : > "$sentinel"
+    python3 - "$reminder_msg" <<'PYEOF'
+import json, sys
+msg = sys.argv[1]
+print(json.dumps({
+    "hookSpecificOutput": {
+        "hookEventName": "UserPromptSubmit",
+        "additionalContext": msg,
+    }
+}))
+PYEOF
     exit 0
     ;;
 

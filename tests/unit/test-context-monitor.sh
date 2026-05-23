@@ -66,6 +66,66 @@ else
   fail "inject-context wrote unexpected stderr" "$(cat "$WORK/inject-context.err")"
 fi
 
+# ── notify-once: JSON envelope, fires once per transcript ────────────────────
+# State file under a custom dir so tests don't touch ~/.claude.
+NOTIFY_STATE_DIR="$WORK/notify-state"
+cat > "$WORK/cfg-notify-once.json" <<JSON
+{
+  "context-monitor": {
+    "enabled": true,
+    "threshold": 100,
+    "mode": "notify-once",
+    "state_dir": "$NOTIFY_STATE_DIR"
+  }
+}
+JSON
+
+# First call: should emit the JSON envelope and create a sentinel.
+MEMO_FLOW_CONFIG="$WORK/cfg-notify-once.json" bash "$HOOK" <<<"$EVENT" \
+  >"$WORK/notify-once-1.out" 2>"$WORK/notify-once-1.err"
+first_exit=$?
+[[ "$first_exit" == "0" ]] && ok "notify-once first call exits 0" || fail "notify-once first exit" "got $first_exit"
+
+if python3 -c "
+import json
+data = json.load(open('$WORK/notify-once-1.out'))
+ctx = data['hookSpecificOutput']['additionalContext']
+assert data['hookSpecificOutput']['hookEventName'] == 'UserPromptSubmit'
+assert 'context-monitor:' in ctx, ctx
+" 2>/dev/null; then
+  ok "notify-once first call emits JSON envelope with additionalContext"
+else
+  fail "notify-once first call JSON wrong" "stdout: $(cat "$WORK/notify-once-1.out")"
+fi
+
+# Sentinel should now exist.
+ls "$NOTIFY_STATE_DIR"/notify-once-*.flag >/dev/null 2>&1 \
+  && ok "notify-once writes a sentinel file" \
+  || fail "notify-once sentinel missing" "dir: $(ls -la "$NOTIFY_STATE_DIR" 2>&1)"
+
+# Second call with same transcript: silent on stdout, no JSON, exit 0.
+MEMO_FLOW_CONFIG="$WORK/cfg-notify-once.json" bash "$HOOK" <<<"$EVENT" \
+  >"$WORK/notify-once-2.out" 2>"$WORK/notify-once-2.err"
+[[ "$(cat "$WORK/notify-once-2.out" 2>/dev/null)" == "" ]] \
+  && ok "notify-once stays silent on second call (same transcript)" \
+  || fail "notify-once not silent on second call" "stdout: $(cat "$WORK/notify-once-2.out")"
+
+# Third call with a different transcript path: fires again.
+TRANSCRIPT2="$WORK/transcript-2.jsonl"
+head -c 8000 /dev/urandom | base64 > "$TRANSCRIPT2"
+EVENT2='{"transcript_path":"'"$TRANSCRIPT2"'"}'
+MEMO_FLOW_CONFIG="$WORK/cfg-notify-once.json" bash "$HOOK" <<<"$EVENT2" \
+  >"$WORK/notify-once-3.out" 2>"$WORK/notify-once-3.err"
+if python3 -c "
+import json
+data = json.load(open('$WORK/notify-once-3.out'))
+assert 'additionalContext' in data['hookSpecificOutput']
+" 2>/dev/null; then
+  ok "notify-once fires again for a different transcript path"
+else
+  fail "notify-once did not re-fire for new transcript" "stdout: $(cat "$WORK/notify-once-3.out")"
+fi
+
 # ── remind-once: stderr, exit 0 (CLI-only visibility) ────────────────────────
 run_with_mode "remind-once" || true
 [[ "$(cat "$WORK/remind-once.exit")" == "0" ]] && ok "remind-once exits 0" || fail "remind-once exit" "got $(cat "$WORK/remind-once.exit")"
