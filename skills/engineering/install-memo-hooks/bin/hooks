@@ -2,9 +2,10 @@
 # hooks — day-two management CLI for memo-flow installed hooks.
 #
 # Usage:
-#   hooks                      TUI editor for config.json (gum if available, else $EDITOR)
-#   hooks --set <hook>=<bool>  non-interactive enable/disable toggle
-#   hooks leaderboard          print top-N skills from skill-usage.json
+#   hooks                              TUI editor for config.json
+#   hooks --set <hook>=<bool>          non-interactive enable/disable toggle
+#   hooks --set <hook>.<field>=<val>   set any scalar field (string, int, bool)
+#   hooks leaderboard                  print top-N skills from skill-usage.json
 #
 # Config location: $MEMO_FLOW_CONFIG (env), or resolved from the installed
 #                  bundle path (project root via SCRIPT_DIR), or $PWD-relative.
@@ -90,27 +91,59 @@ cmd_set() {
 
   # validate format: must contain exactly one "="
   if [[ "$arg" != *=* ]]; then
-    echo "hooks: --set requires <hook>=<true|false>, got: $arg" >&2
+    echo "hooks: --set requires <hook>=<bool> or <hook>.<field>=<value>, got: $arg" >&2
     exit 1
   fi
 
-  local hook="${arg%%=*}"
+  local key="${arg%%=*}"
   local value="${arg#*=}"
 
-  if [ -z "$hook" ]; then
-    echo "hooks: --set hook name cannot be empty" >&2
+  if [ -z "$key" ]; then
+    echo "hooks: --set key cannot be empty" >&2
     exit 1
   fi
 
-  case "$value" in
-    true|false) ;;
-    *)
-      echo "hooks: --set value must be true or false, got: $value" >&2
-      exit 1
-      ;;
-  esac
+  # No dot → legacy bool toggle on the hook's `enabled` flag.
+  if [[ "$key" != *.* ]]; then
+    case "$value" in
+      true|false) ;;
+      *)
+        echo "hooks: --set <hook>=<value> requires true|false (use <hook>.enabled=$value for explicit fields), got: $value" >&2
+        exit 1
+        ;;
+    esac
+    "$HOOK_CONFIG_SH" toggle "$CONFIG_FILE" "$key" "$value"
+    return
+  fi
 
-  "$HOOK_CONFIG_SH" toggle "$CONFIG_FILE" "$hook" "$value"
+  # Dotted path → arbitrary scalar field merge.
+  local hook="${key%%.*}"
+  local field="${key#*.}"
+
+  if [ -z "$hook" ] || [ -z "$field" ]; then
+    echo "hooks: --set <hook>.<field>=<value> needs non-empty hook and field, got: $arg" >&2
+    exit 1
+  fi
+
+  # Coerce the value: true/false → bool, all-digits → int, else string.
+  # Build a JSON object {<field>: <value>} and merge via set-hook-config.
+  local merge_json
+  merge_json=$(python3 - "$field" "$value" <<'PYEOF'
+import json, sys
+field, raw = sys.argv[1], sys.argv[2]
+if raw == "true":
+    v = True
+elif raw == "false":
+    v = False
+elif raw.lstrip("-").isdigit():
+    v = int(raw)
+else:
+    v = raw
+print(json.dumps({field: v}))
+PYEOF
+)
+
+  "$HOOK_CONFIG_SH" set-hook-config "$CONFIG_FILE" "$hook" "$merge_json"
 }
 
 # ── TUI (default, no args) ────────────────────────────────────────────────────
@@ -204,7 +237,8 @@ usage: hooks [<command>]
 
 commands:
   (none)              open TUI editor for config.json
-  --set <hook>=<bool> non-interactive enable/disable toggle
+  --set <hook>=<bool>              enable/disable toggle (shorthand for <hook>.enabled=<bool>)
+  --set <hook>.<field>=<value>     set any scalar field on a hook (string, int, or bool)
   leaderboard [N]     print top N skills by invocation count (default: 10)
 
 environment:
