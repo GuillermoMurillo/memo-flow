@@ -53,6 +53,7 @@ Pass `--scope project` or `--scope user` to skip the prompt:
 ### 5. Done
 
 Tell the user hooks are installed and briefly explain:
-- Toggle hooks via `.claude/memo-flow/config.json` (the `"enabled"` field per hook)
-- Re-running this skill installs any new hooks added to the bundle (idempotent for existing ones)
-- Run `/uninstall-memo-hooks` to remove the hooks tier cleanly
+- Toggle and configure hooks via `/memo-hooks` (or edit `.claude/memo-flow/config.json` directly). `memo-hooks --set <hook>.<field>=<value>` works for any scalar — useful for changing `context-monitor.mode` and `threshold` mid-session.
+- Optional: install [`gum`](https://github.com/charmbracelet/gum) (`brew install gum` on macOS) for a nicer toggle TUI. Without it, the no-args `memo-hooks` invocation falls back to `$EDITOR` on the raw JSON.
+- Re-running this skill installs any new hooks added to the bundle (idempotent for existing ones).
+- Run `/uninstall-memo-hooks` to remove the hooks tier cleanly.

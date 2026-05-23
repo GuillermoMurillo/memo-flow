@@ -15,7 +15,9 @@ Run the CLI:
 
 ## What the CLI does
 
-**No args** — opens a TUI editor for `.claude/memo-flow/config.json`. Uses `gum` if it is on `PATH`; falls back to `$EDITOR` otherwise.
+**No args** — opens a TUI editor for `.claude/memo-flow/config.json`. Uses `gum` if it is on `PATH` (gives you a checkbox toggle menu); falls back to `$EDITOR` (raw JSON edit) otherwise.
+
+Optional, for the nicer toggle UI: `brew install gum` (macOS) or see [github.com/charmbracelet/gum](https://github.com/charmbracelet/gum) for other platforms. It is a runtime check only — never a hard dependency.
 
 **`--set <hook>=<true|false>`** — shorthand to toggle a hook's `enabled` flag.
 
