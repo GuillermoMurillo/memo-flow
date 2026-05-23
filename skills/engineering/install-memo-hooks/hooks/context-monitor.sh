@@ -3,16 +3,21 @@
 #
 # Reads a UserPromptSubmit event JSON from stdin. Estimates token count from
 # the transcript file (Claude Code 2.1.92 doesn't send transcript_token_count;
-# bytes/4 is within ~10-15% of real count). Behavior depends on mode:
+# bytes/4 is within ~10-15% of real count). All modes inject via the JSON
+# additionalContext envelope so warnings surface in any UI (CLI, web,
+# remote-control). Behavior depends on mode:
 #
-#   inject-context — exits 0, emits JSON with hookSpecificOutput.additionalContext
-#                    so the model sees the warning. Works in any UI (CLI, web,
-#                    remote-control). Default and recommended.
-#   remind-once    — exits 0, single stderr line. CLI-visible only — stderr
-#                    from non-blocking hooks does NOT surface in claude.ai web.
-#   remind-until   — exits 0, stderr line every turn over threshold (CLI-only).
-#   auto           — writes a handoff file and exits 2 (blocking). Surfaces in
-#                    any UI but blocks the prompt entirely.
+#   notify        — every over-threshold turn, inject a soft warning. Default.
+#   notify-once   — same as notify, but only once per transcript. Sentinel
+#                   under $state_dir (default ~/.claude/memo-flow/state).
+#   nag           — every turn, sharper language ("you should really run
+#                   /handoff now").
+#   auto-handoff  — every turn, instruct the model to stop, call /handoff
+#                   with an inferred one-line intent, and tell the user to
+#                   start fresh.
+#
+# Deprecated aliases (still work, warn on stderr): inject-context → notify,
+# remind-once → notify-once, remind-until → nag, auto → auto-handoff.
 #
 # Config location: $MEMO_FLOW_CONFIG (env) or ./.claude/memo-flow/config.json (cwd)
 # Config key: "context-monitor"
@@ -35,7 +40,7 @@ config_file = sys.argv[1]
 defaults = {
     "enabled": True,
     "threshold": 99000,
-    "mode": "inject-context",
+    "mode": "notify",
     "handoff_dir": None,
 }
 
@@ -67,7 +72,7 @@ if [ "$enabled" = "False" ]; then
 fi
 
 threshold=$(python3 -c "import json,sys; print(json.loads(sys.argv[1]).get('threshold', 99000))" "$config_json")
-mode=$(python3 -c "import json,sys; print(json.loads(sys.argv[1]).get('mode', 'inject-context'))" "$config_json")
+mode=$(python3 -c "import json,sys; print(json.loads(sys.argv[1]).get('mode', 'notify'))" "$config_json")
 handoff_dir=$(python3 -c "
 import json, sys, os
 cfg = json.loads(sys.argv[1])
@@ -129,20 +134,57 @@ if [ "$token_count" -lt "$threshold" ] 2>/dev/null; then
   exit 0
 fi
 
-# ── above threshold: dispatch by mode ─────────────────────────────────────────
+# ── above threshold: deprecate old modes, then dispatch by canonical name ─────
 
+# Deprecation aliases. The old names (inject-context, remind-once, remind-until,
+# auto) all kept user intent but had architectural limits — stderr-only paths
+# don't surface in claude.ai web; `auto` blocked the prompt with a stub handoff
+# file that captured no intent. Old configs keep working: we emit a one-time
+# stderr warning and route to the canonical mode that matches user intent.
+case "$mode" in
+  inject-context)
+    echo "context-monitor: 'inject-context' mode is deprecated; rename to 'notify' in config.json." >&2
+    mode=notify
+    ;;
+  remind-once)
+    echo "context-monitor: 'remind-once' mode is deprecated; rename to 'notify-once' in config.json." >&2
+    mode=notify-once
+    ;;
+  remind-until)
+    echo "context-monitor: 'remind-until' mode is deprecated; rename to 'nag' in config.json." >&2
+    mode=nag
+    ;;
+  auto)
+    echo "context-monitor: 'auto' mode is deprecated (the old exit-2 + stub handoff file behavior was removed); rename to 'auto-handoff' in config.json." >&2
+    mode=auto-handoff
+    ;;
+esac
+
+# Canonical reminder copy. `nag` overrides it with sharper language below.
 reminder_msg="context-monitor: ~${token_count} tokens — near limit (${threshold}). Run /handoff before reasoning degrades."
+
+emit_additional_context() {
+  python3 - "$1" <<'PYEOF'
+import json, sys
+print(json.dumps({
+    "hookSpecificOutput": {
+        "hookEventName": "UserPromptSubmit",
+        "additionalContext": sys.argv[1],
+    }
+}))
+PYEOF
+}
 
 case "$mode" in
 
-  remind-once|remind-until)
-    echo "$reminder_msg" >&2
+  notify)
+    emit_additional_context "$reminder_msg"
     exit 0
     ;;
 
   notify-once)
-    # Fires the JSON envelope once per transcript. Sentinel keyed by a hash of
-    # transcript_path; a new session (new transcript) gets a fresh notification.
+    # Fires once per transcript. Sentinel keyed by a hash of transcript_path;
+    # a new session (new transcript) gets a fresh notification.
     sentinel_hash=$(printf '%s' "$transcript_path" | shasum | cut -c1-16)
     sentinel="$state_dir/notify-once-${sentinel_hash}.flag"
     if [ -e "$sentinel" ]; then
@@ -150,16 +192,13 @@ case "$mode" in
     fi
     mkdir -p "$state_dir"
     : > "$sentinel"
-    python3 - "$reminder_msg" <<'PYEOF'
-import json, sys
-msg = sys.argv[1]
-print(json.dumps({
-    "hookSpecificOutput": {
-        "hookEventName": "UserPromptSubmit",
-        "additionalContext": msg,
-    }
-}))
-PYEOF
+    emit_additional_context "$reminder_msg"
+    exit 0
+    ;;
+
+  nag)
+    nag_msg="context-monitor: ~${token_count} tokens — over limit (${threshold}). You should really run \`/handoff\` now before reasoning degrades."
+    emit_additional_context "$nag_msg"
     exit 0
     ;;
 
@@ -168,60 +207,8 @@ PYEOF
     # inferred one-line intent, then instruct the user to start fresh. The
     # model reads chat history and supplies the argument; the hook can't.
     auto_msg="context-monitor: ~${token_count} tokens (threshold: ${threshold}). **Stop current work.** Call the \`/handoff\` skill and pass a one-line intent summarizing what we were just doing. Then tell the user to start a fresh session."
-    python3 - "$auto_msg" <<'PYEOF'
-import json, sys
-msg = sys.argv[1]
-print(json.dumps({
-    "hookSpecificOutput": {
-        "hookEventName": "UserPromptSubmit",
-        "additionalContext": msg,
-    }
-}))
-PYEOF
+    emit_additional_context "$auto_msg"
     exit 0
-    ;;
-
-  inject-context)
-    # Claude Code expects UserPromptSubmit hooks to return JSON with
-    # `hookSpecificOutput.additionalContext` to inject context the model can
-    # see. Plain text on stdout is logged but not surfaced to the model
-    # (debug log: "Hook output does not start with {, treating as plain text").
-    # This mode works in any UI (CLI, web, remote-control) because the warning
-    # arrives as model-visible context, not stderr.
-    python3 - "$reminder_msg" <<'PYEOF'
-import json, sys
-msg = sys.argv[1]
-print(json.dumps({
-    "hookSpecificOutput": {
-        "hookEventName": "UserPromptSubmit",
-        "additionalContext": msg,
-    }
-}))
-PYEOF
-    exit 0
-    ;;
-
-  auto)
-    # write a handoff document
-    mkdir -p "$handoff_dir"
-    handoff_file="$handoff_dir/handoff-$(date +%Y%m%d-%H%M%S)-$$.md"
-    cat > "$handoff_file" <<HANDOFF_EOF
-# Context Handoff
-
-Generated by context-monitor at $(date -u +"%Y-%m-%dT%H:%M:%SZ").
-
-Token count at trigger: ${token_count} (threshold: ${threshold})
-
-## Resume note
-
-Context window is near capacity. Start a fresh session and re-read Memory before continuing.
-
-HANDOFF_EOF
-
-    # exit 2 surfaces the message and blocks the prompt
-    echo "$reminder_msg" >&2
-    echo "Handoff written: $handoff_file" >&2
-    exit 2
     ;;
 
   *)

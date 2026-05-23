@@ -43,28 +43,9 @@ JSON
   echo $? > "$WORK/$mode.exit"
 }
 
-# ── inject-context mode: stdout has warning, stderr empty, exit 0 ─────────────
-run_with_mode "inject-context" || true
-exit_code=$(cat "$WORK/inject-context.exit")
-[[ "$exit_code" == "0" ]] && ok "inject-context exits 0 (non-blocking)" || fail "inject-context exit code" "got $exit_code"
-
-if python3 -c "
-import json, sys
-data = json.load(open('$WORK/inject-context.out'))
-ctx = data['hookSpecificOutput']['additionalContext']
-assert data['hookSpecificOutput']['hookEventName'] == 'UserPromptSubmit'
-assert 'context-monitor:' in ctx, ctx
-" 2>/dev/null; then
-  ok "inject-context emits Claude Code JSON envelope with additionalContext"
-else
-  fail "inject-context JSON shape wrong" "stdout: $(cat "$WORK/inject-context.out")"
-fi
-
-if [[ ! -s "$WORK/inject-context.err" ]]; then
-  ok "inject-context leaves stderr empty"
-else
-  fail "inject-context wrote unexpected stderr" "$(cat "$WORK/inject-context.err")"
-fi
+# (Canonical 'notify' mode is covered further down. Tests for 'inject-context'
+# now live in the deprecated-alias block — the original behavioral tests for
+# inject-context are redundant.)
 
 # ── notify-once: JSON envelope, fires once per transcript ────────────────────
 # State file under a custom dir so tests don't touch ~/.claude.
@@ -154,38 +135,105 @@ else
   fail "auto-handoff JSON wrong" "stdout: $(cat "$WORK/auto-handoff.out")"
 fi
 
-# ── remind-once: stderr, exit 0 (CLI-only visibility) ────────────────────────
-run_with_mode "remind-once" || true
-[[ "$(cat "$WORK/remind-once.exit")" == "0" ]] && ok "remind-once exits 0" || fail "remind-once exit" "got $(cat "$WORK/remind-once.exit")"
-grep -q "context-monitor:" "$WORK/remind-once.err" && ok "remind-once writes to STDERR" || fail "remind-once stderr" "got: $(cat "$WORK/remind-once.err")"
-[[ ! -s "$WORK/remind-once.out" ]] && ok "remind-once leaves stdout empty" || fail "remind-once stdout leak" "$(cat "$WORK/remind-once.out")"
+# ── notify: canonical replacement for inject-context ─────────────────────────
+run_with_mode "notify" || true
+[[ "$(cat "$WORK/notify.exit")" == "0" ]] && ok "notify exits 0" || fail "notify exit" "got $(cat "$WORK/notify.exit")"
+if python3 -c "
+import json
+data = json.load(open('$WORK/notify.out'))
+assert data['hookSpecificOutput']['hookEventName'] == 'UserPromptSubmit'
+assert 'context-monitor:' in data['hookSpecificOutput']['additionalContext']
+" 2>/dev/null; then
+  ok "notify emits JSON envelope with additionalContext"
+else
+  fail "notify JSON wrong" "stdout: $(cat "$WORK/notify.out")"
+fi
+[[ ! -s "$WORK/notify.err" ]] && ok "notify leaves stderr empty" || fail "notify stderr leak" "$(cat "$WORK/notify.err")"
 
-# ── remind-until: same stderr behavior as remind-once ────────────────────────
-run_with_mode "remind-until" || true
-[[ "$(cat "$WORK/remind-until.exit")" == "0" ]] && ok "remind-until exits 0" || fail "remind-until exit"
-grep -q "context-monitor:" "$WORK/remind-until.err" && ok "remind-until writes to STDERR" || fail "remind-until stderr"
+# ── nag: JSON every turn with sharper language ───────────────────────────────
+run_with_mode "nag" || true
+[[ "$(cat "$WORK/nag.exit")" == "0" ]] && ok "nag exits 0" || fail "nag exit"
+if python3 -c "
+import json
+data = json.load(open('$WORK/nag.out'))
+ctx = data['hookSpecificOutput']['additionalContext']
+assert 'really' in ctx.lower() or 'now' in ctx.lower(), ctx
+assert '/handoff' in ctx, ctx
+" 2>/dev/null; then
+  ok "nag JSON uses sharper language and names /handoff"
+else
+  fail "nag JSON wrong" "stdout: $(cat "$WORK/nag.out")"
+fi
+# nag fires every turn — second call still emits.
+run_with_mode "nag" || true
+python3 -c "import json; json.load(open('$WORK/nag.out'))" 2>/dev/null \
+  && ok "nag fires every turn (no state suppression)" \
+  || fail "nag second call did not emit JSON"
 
-# ── auto: exit 2 (blocking), stderr message, handoff file written ────────────
-AUTO_HANDOFF_DIR="$WORK/handoffs"
-cat > "$WORK/cfg-auto.json" <<JSON
+# ── deprecated aliases: stderr warning + canonical behavior ──────────────────
+# inject-context → notify
+run_with_mode "inject-context" || true
+grep -qi "deprecat" "$WORK/inject-context.err" \
+  && ok "inject-context alias warns deprecation on stderr" \
+  || fail "inject-context deprecation warning missing" "stderr: $(cat "$WORK/inject-context.err")"
+python3 -c "
+import json
+data = json.load(open('$WORK/inject-context.out'))
+assert 'additionalContext' in data['hookSpecificOutput']
+" 2>/dev/null && ok "inject-context alias still emits JSON envelope" \
+  || fail "inject-context alias no JSON" "stdout: $(cat "$WORK/inject-context.out")"
+
+# remind-once → notify-once
+ALIAS_STATE="$WORK/alias-state"
+cat > "$WORK/cfg-remind-once.json" <<JSON
 {
   "context-monitor": {
     "enabled": true,
     "threshold": 100,
-    "mode": "auto",
-    "handoff_dir": "$AUTO_HANDOFF_DIR"
+    "mode": "remind-once",
+    "state_dir": "$ALIAS_STATE"
   }
 }
 JSON
-set +e
-MEMO_FLOW_CONFIG="$WORK/cfg-auto.json" bash "$HOOK" <<<"$EVENT" \
-  >"$WORK/auto.out" 2>"$WORK/auto.err"
-auto_exit=$?
-set -e
-[[ "$auto_exit" == "2" ]] && ok "auto exits 2 (blocking)" || fail "auto exit code" "got $auto_exit"
-grep -q "context-monitor:" "$WORK/auto.err" && ok "auto writes reminder to STDERR" || fail "auto stderr"
-grep -q "Handoff written:" "$WORK/auto.err" && ok "auto stderr names handoff file" || fail "auto handoff line"
-ls "$AUTO_HANDOFF_DIR"/handoff-*.md >/dev/null 2>&1 && ok "auto creates handoff file on disk" || fail "auto handoff missing" "dir: $(ls -la "$AUTO_HANDOFF_DIR" 2>&1)"
+MEMO_FLOW_CONFIG="$WORK/cfg-remind-once.json" bash "$HOOK" <<<"$EVENT" \
+  >"$WORK/remind-once.out" 2>"$WORK/remind-once.err"
+grep -qi "deprecat" "$WORK/remind-once.err" \
+  && ok "remind-once alias warns deprecation on stderr" \
+  || fail "remind-once deprecation missing"
+python3 -c "
+import json
+data = json.load(open('$WORK/remind-once.out'))
+assert 'additionalContext' in data['hookSpecificOutput']
+" 2>/dev/null && ok "remind-once alias emits JSON (routes to notify-once)" \
+  || fail "remind-once alias did not emit JSON"
+
+# remind-until → nag
+run_with_mode "remind-until" || true
+grep -qi "deprecat" "$WORK/remind-until.err" \
+  && ok "remind-until alias warns deprecation on stderr" \
+  || fail "remind-until deprecation missing"
+python3 -c "
+import json
+data = json.load(open('$WORK/remind-until.out'))
+assert 'additionalContext' in data['hookSpecificOutput']
+" 2>/dev/null && ok "remind-until alias emits JSON (routes to nag)" \
+  || fail "remind-until alias did not emit JSON"
+
+# auto → auto-handoff (old exit-2 + stub handoff file behavior removed)
+run_with_mode "auto" || true
+[[ "$(cat "$WORK/auto.exit")" == "0" ]] \
+  && ok "auto alias no longer blocks (exit 0)" \
+  || fail "auto alias still blocks" "exit $(cat "$WORK/auto.exit")"
+grep -qi "deprecat" "$WORK/auto.err" \
+  && ok "auto alias warns deprecation on stderr" \
+  || fail "auto deprecation missing"
+python3 -c "
+import json
+data = json.load(open('$WORK/auto.out'))
+ctx = data['hookSpecificOutput']['additionalContext']
+assert '/handoff' in ctx
+" 2>/dev/null && ok "auto alias emits JSON (routes to auto-handoff)" \
+  || fail "auto alias did not route to auto-handoff"
 
 # ── unknown mode: advisory fallthrough (stderr + exit 0, no block) ──────────
 run_with_mode "bogus-mode" || true

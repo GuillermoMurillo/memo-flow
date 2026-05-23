@@ -46,7 +46,7 @@ Pass `--scope project` or `--scope user` to skip the prompt:
 
 ### 4. What gets installed
 
-**`context-monitor.sh`** (UserPromptSubmit hook): watches transcript token count and warns (or blocks) when approaching the context limit. Three modes: `remind-once` (single stderr line), `remind-until` (stderr every turn), `auto` (writes handoff file + blocks the prompt). Default threshold: 99000 tokens. Disabled via `config.json` toggle. Fail-open if config is missing.
+**`context-monitor.sh`** (UserPromptSubmit hook): watches transcript token count and warns when approaching the context limit. Four modes, all delivered via the JSON `additionalContext` envelope so warnings surface in any UI (CLI, web, remote-control): `notify` (every over-threshold turn, default), `notify-once` (once per transcript), `nag` (every turn, sharper language), `auto-handoff` (every turn, instructs the model to call `/handoff` with an inferred intent and tell the user to start fresh). Old names (`inject-context`, `remind-once`, `remind-until`, `auto`) keep working as deprecated aliases. Default threshold: 99000 tokens. Disabled via `config.json` toggle. Fail-open if config is missing.
 
 **`skill-leaderboard.sh`** (PostToolUse hook): increments a counter in `~/.claude/memo-flow/skill-usage.json` keyed by skill name every time the Skill tool fires. Disabled via `config.json` toggle. Fail-open if config is missing.
 

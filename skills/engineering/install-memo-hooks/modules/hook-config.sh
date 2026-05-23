@@ -29,7 +29,7 @@ _DEFAULTS='{
   "context-monitor": {
     "enabled": true,
     "threshold": 99000,
-    "mode": "inject-context"
+    "mode": "notify"
   },
   "skill-leaderboard": {
     "enabled": true,
