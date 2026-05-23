@@ -41,11 +41,11 @@ Scaffold the per-repo configuration that the engineering skills assume:
 - **Triage labels** — the strings used for the five canonical triage roles
 - **Domain docs** — where `CONTEXT.md` and ADRs live, and the consumer rules for reading them
 
-This is a prompt-driven flow, not a deterministic script. Explore, present what you found, confirm with the user, then write.
+This is a prompt-driven flow, not a deterministic script. Explore, present a narrative beat, ask 3 questions in one shot, confirm at a pre-flight gate, then write.
 
 ### A1. Explore
 
-Look at the current repo to understand its starting state. Read whatever exists; don't assume:
+Silently look at the current repo to understand its starting state. Read whatever exists; don't assume:
 
 - `git remote -v` and `.git/config` — is this a GitHub repo? Which one?
 - `AGENTS.md` and `CLAUDE.md` at the repo root — does either exist? Is there already an `## Agent skills` section in either?
@@ -53,67 +53,120 @@ Look at the current repo to understand its starting state. Read whatever exists;
 - `docs/adr/` and any `src/*/docs/adr/` directories
 - `docs/agents/` — does this skill's prior output already exist?
 - `.scratch/` — sign that a local-markdown issue tracker convention is already in use
+- `.claude/skills/memo-hooks/install.sh` — is the hooks tier available? If so, note it; you'll need this in A6.
 
-### A2. Present findings and ask
+Do not speak yet. Hold findings for the narrative beat.
 
-Summarise what's present and what's missing. Then walk the user through the three decisions **one at a time** — present a section, get the user's answer, then move to the next. Don't dump all three at once.
+### A2. Narrative beat
 
-Assume the user does not know what these terms mean. Each section starts with a short explainer (what it is, why these skills need it, what changes if they pick differently). Then show the choices and the default.
+Emit this block — no `AskUserQuestion`. Substitute `{var}` placeholders from A1 findings.
 
-**Section A — Issue tracker.**
+```
+Working directory: `{absolute-path}`.
 
-> Explainer: The "issue tracker" is where issues live for this repo. Skills like `to-issues`, `triage`, `to-prd`, and `qa` read from and write to it — they need to know whether to call `gh issue create`, write a markdown file under `.scratch/`, or follow some other workflow you describe. Pick the place you actually track work for this repo.
+About to set up the memo-flow engineering skills for this project. This takes three questions
+(you can change any answer later by editing `docs/agents/*.md` directly). Defaults handle the
+most common cases so you can accept everything and re-run `/memo-flow` if you want to adjust.
 
-Default posture: these skills were designed for GitHub. If a `git remote` points at GitHub, propose that. If a `git remote` points at GitLab (`gitlab.com` or a self-hosted host), propose GitLab. Otherwise (or if the user prefers), offer:
+Exceptional-case defaults applied before asking:
+- Config file: `{CLAUDE.md if it exists, else AGENTS.md if it exists, else CLAUDE.md (new)}`
+  — override by saying so in your answer.
+- AFK wrapper: will {install fresh / replace existing shim} at `.claude/memo-flow/bin/afk-cook`
+  — override by saying so.
+```
 
-- **GitHub** — issues live in the repo's GitHub Issues (uses the `gh` CLI)
-- **GitLab** — issues live in the repo's GitLab Issues (uses the [`glab`](https://gitlab.com/gitlab-org/cli) CLI)
-- **Local markdown** — issues live as files under `.scratch/<feature>/` in this repo (good for solo projects or repos without a remote)
-- **Other** (Jira, Linear, etc.) — ask the user to describe the workflow in one paragraph; the skill will record it as freeform prose
+### A3. Batched interview
 
-**Section B — Triage label vocabulary.**
+One `AskUserQuestion` with 3 sub-questions. Use the literal `question:` text below; substitute `{var}` placeholders but do not paraphrase.
 
-> Explainer: When the `triage` skill processes an incoming issue, it moves it through a state machine — needs evaluation, waiting on reporter, ready for an AFK agent to pick up, ready for a human, or won't fix. To do that, it needs to apply labels (or the equivalent in your issue tracker) that match strings *you've actually configured*. If your repo already uses different label names (e.g. `bug:triage` instead of `needs-triage`), map them here so the skill applies the right ones instead of creating duplicates.
+**Sub-question 1 — Issue tracker**
 
-The five canonical roles:
+```
+question: "Where do issues live for this repo?
+`to-issues` and `triage` need to know whether to call `gh issue create`, write markdown
+under `.scratch/`, or follow another workflow — picking wrong means those skills either
+create issues in the wrong place or error out. You can change this later by editing
+`docs/agents/issue-tracker.md`.
 
-- `needs-triage` — maintainer needs to evaluate
-- `needs-info` — waiting on reporter
-- `ready-for-agent` — fully specified, AFK-ready (an agent can pick it up with no human context)
-- `ready-for-human` — needs human implementation
-- `wontfix` — will not be actioned
+Detected remote: {detected-github-remote or 'none'}"
 
-Default: each role's string equals its name. Ask the user if they want to override any. If their issue tracker has no existing labels, the defaults are fine.
+options:
+  - GitHub (default{if remote detected: ", remote: {owner}/{repo}"}) — uses the `gh` CLI
+  - GitLab — uses the `glab` CLI
+  - Local markdown — issues live as files under `.scratch/<feature>/`
+  - Other (Jira, Linear, etc.) — describe your workflow in one paragraph
+```
 
-**Section C — Domain docs.**
+**Sub-question 2 — Triage label vocabulary**
 
-> Explainer: Some skills (`improve-codebase-architecture`, `diagnose`, `tdd`) read a `CONTEXT.md` file to learn the project's domain language, and `docs/adr/` for past architectural decisions. They need to know whether the repo has one global context or multiple (e.g. a monorepo with separate frontend/backend contexts) so they look in the right place.
+```
+question: "`triage`, `to-issues`, and `afk-cook` apply labels to move issues through a
+state machine. If your repo uses different label names (e.g. `bug:triage` instead of
+`needs-triage`), map them here — picking wrong creates duplicate labels or breaks the
+AFK queue filter. You can change this later by editing `docs/agents/triage-labels.md`.
 
-Confirm the layout:
+Five canonical roles (defaults equal name):"
 
-- **Single-context** — one `CONTEXT.md` + `docs/adr/` at the repo root. Most repos are this.
-- **Multi-context** — `CONTEXT-MAP.md` at the root pointing to per-context `CONTEXT.md` files (typically a monorepo).
+options:
+  - Use defaults (needs-triage / needs-info / ready-for-agent / ready-for-human / wontfix)
+  - Override — tell me which names to change
+```
 
-### A3. Confirm and edit
+**Sub-question 3 — Domain doc layout**
 
-Show the user a draft of:
+```
+question: "`improve-codebase-architecture`, `diagnose`, and `tdd` read `CONTEXT.md` and
+`docs/adr/` for domain language and architectural decisions. They need to know whether
+there is one global context or per-module contexts so they look in the right place. You
+can change this later by editing `docs/agents/domain.md`."
 
-- The `## Agent skills` block to add to whichever of `CLAUDE.md` / `AGENTS.md` is being edited (see step A4 for selection rules)
-- The contents of `docs/agents/issue-tracker.md`, `docs/agents/triage-labels.md`, `docs/agents/domain.md`
+options:
+  - Single-context (default) — one `CONTEXT.md` + `docs/adr/` at the repo root
+  - Multi-context — `CONTEXT-MAP.md` at root pointing to per-context files (monorepo)
+```
 
-Let them edit before writing.
+### A4. Pre-flight gate
 
-### A4. Write
+One `AskUserQuestion`. Build the path list dynamically from A3 answers:
 
-**Pick the file to edit:**
+- Always include the config-file line, the three `docs/agents/` lines, the wrapper line, the manifest line, and the registry line.
+- Include the GitHub-label line **only** when tracker = GitHub AND a remote is detected.
+
+```
+question: "Working directory: `{absolute-path}`. About to apply these changes:
+  • {CLAUDE.md or AGENTS.md} (add ~12-line block)
+  • docs/agents/issue-tracker.md (new)
+  • docs/agents/triage-labels.md (new)
+  • docs/agents/domain.md (new)
+  • .claude/memo-flow/bin/afk-cook ({install fresh or 'replacing existing shim'})
+  • .claude/memo-flow/manifest.json (new)
+  • ~/.claude/memo-flow/registry.json (append project)
+  [• 5 triage labels on {owner}/{repo}   — only when tracker=GitHub + remote present]
+"
+
+options:
+  - Apply (default) — applies the defaults shown above; say so in chat if you want any changed
+  - Show me the content first — render full content of each file inline, then re-ask this gate
+  - Cancel
+```
+
+On **Show me the content first**: render the full content of every file in the path list inline, then fire the same `AskUserQuestion` again (Apply / Cancel only on re-ask).
+
+On **Cancel**: stop. Tell the user they can re-run `/memo-flow` any time.
+
+### A5. Write
+
+Execute all writes. No additional `AskUserQuestion` calls.
+
+**Pick the config file:**
 
 - If `CLAUDE.md` exists, edit it.
 - Else if `AGENTS.md` exists, edit it.
-- If neither exists, ask the user which one to create — don't pick for them.
+- If neither exists, create `CLAUDE.md`.
 
-Never create `AGENTS.md` when `CLAUDE.md` already exists (or vice versa) — always edit the one that's already there.
+Never create `AGENTS.md` when `CLAUDE.md` already exists (or vice versa) — always edit the one that's there.
 
-**Re-run detection uses fence markers, not heading match.** When deciding whether a previous run already wrote the `## Agent skills` block, look for `<!-- BEGIN memo-flow:agent-skills -->` in the file, not for the heading itself. Heading match only applies if the fence is absent (pre-fence legacy install — treat as first run for fence purposes).
+**Re-run detection uses fence markers, not heading match.** Look for `<!-- BEGIN memo-flow:agent-skills -->` in the file, not the heading. Heading match only applies if the fence is absent (pre-fence legacy install — treat as first run for fence purposes).
 
 **Fence wrapping.** Always wrap the generated `## Agent skills` block in memo-flow marker fences:
 
@@ -138,13 +191,13 @@ Never create `AGENTS.md` when `CLAUDE.md` already exists (or vice versa) — alw
 **Re-run behaviour:**
 
 - **Fence absent** (first run or pre-fence legacy install): write the block with fence markers. For legacy installs where an unfenced `## Agent skills` heading already exists, replace it in-place with the fenced version.
-- **Fence present, content unchanged** (generated content matches what's already inside the fence): no-op. Tell the user "already configured, nothing to do."
-- **Fence present, inner content changed** (user edited inside the fence): regenerate — replace the fence's inner content with the freshly generated block. User text *outside* the fence is untouched.
-- **Corruption** (only `<!-- BEGIN memo-flow:agent-skills -->` is present with no matching END): leave the file alone, warn the user, and stop. Do not write anything.
+- **Fence present, content unchanged**: no-op. Tell the user "already configured, nothing to do."
+- **Fence present, inner content changed** (user edited inside the fence): regenerate — replace the fence's inner content with the freshly generated block. User text outside the fence is untouched.
+- **Corruption** (only `<!-- BEGIN memo-flow:agent-skills -->` present with no matching END): leave the file alone, warn the user, and stop.
 
 **Multiple sections** in one file are independent. This skill only manages the `agent-skills` section; other fenced sections are left alone.
 
-Then write the three docs files using the seed templates in this skill folder as a starting point:
+Write the three docs files using the seed templates in this skill folder:
 
 - [issue-tracker-github.md](./issue-tracker-github.md) — GitHub issue tracker
 - [issue-tracker-gitlab.md](./issue-tracker-gitlab.md) — GitLab issue tracker
@@ -154,94 +207,57 @@ Then write the three docs files using the seed templates in this skill folder as
 
 For "other" issue trackers, write `docs/agents/issue-tracker.md` from scratch using the user's description.
 
-### A4b. Create canonical labels (GitHub only)
-
-If the user picked **GitHub** in Section A, also create the five canonical triage labels on the remote repo so that `/triage`, `/to-issues`, and `afk-cook` can apply them without "label not found" errors.
-
-Use the **mapped strings** from Section B (which default to the canonical names but may have been overridden). For each role, run:
+**Create canonical labels (GitHub only).** If tracker = GitHub, create the five triage labels on the remote repo:
 
 ```bash
 gh label create "<mapped-string>" --repo "<owner>/<repo>" --color CCCCCC --force
 ```
 
-The `--force` flag makes the command a no-op if the label already exists, so this is safe to re-run. Suggested order:
+Use mapped strings from Sub-question 2 (defaulting to canonical names). The `--force` flag is a no-op if the label already exists. If no GitHub remote is present, skip and remind the user to re-run `/memo-flow` after pushing.
 
-- `needs-triage`
-- `needs-info`
-- `ready-for-agent`
-- `ready-for-human`
-- `wontfix`
+If tracker = GitLab, do the equivalent with `glab label create`. For local-markdown or other, skip.
 
-Tell the user which labels were created (or were already present). If the repo doesn't yet have a GitHub remote, skip this step and remind the user to re-run `/memo-flow` after pushing.
-
-If the user picked **GitLab**, do the equivalent with `glab label create` (the GitLab CLI). For **local-markdown** or **other** trackers, skip this step entirely.
-
-### A5. Write manifest and user registry
-
-After writing the config files, record the install in the two state files.
-
-**Detect existing install first.** Read `.claude/memo-flow/manifest.json` if it exists and look for `<!-- BEGIN memo-flow:agent-skills -->` already in the target file. If both the manifest entry for `memo-flow:agent-skills` is present AND the fence is already in the file with matching content, the install is up-to-date: tell the user "already configured, nothing to do" and stop. Do not re-write anything.
-
-**On first run (no manifest or missing entry):**
-
-Use the vendored `modules/manifest.sh` from the skill folder to write the manifest:
+**Write manifest and user registry.** Record the install:
 
 ```bash
-# Create or update manifest at .claude/memo-flow/manifest.json
 SKILL_DIR="$(find .claude/skills -maxdepth 1 -name memo-flow -type d | head -1)"
 "$SKILL_DIR/modules/manifest.sh" init .claude/memo-flow/manifest.json "<bundle-version>"
 "$SKILL_DIR/modules/manifest.sh" append .claude/memo-flow/manifest.json \
-  '{"id":"memo-flow:agent-skills","kind":"doc_block","target":"<AGENTS.md or CLAUDE.md>","section":"agent-skills","customized":false}'
-```
-
-Then register the project in the user-level registry using the vendored `modules/user-registry.sh`:
-
-```bash
-# Register in ~/.claude/memo-flow/registry.json
+  '{"id":"memo-flow:agent-skills","kind":"doc_block","target":"<CLAUDE.md or AGENTS.md>","section":"agent-skills","customized":false}'
 "$SKILL_DIR/modules/user-registry.sh" insert ~/.claude/memo-flow/registry.json \
   "<absolute-path-to-project-root>" '["base"]'
 ```
 
-The `<bundle-version>` comes from the `name` field in `.claude-plugin/plugin.json` if available, otherwise use `"unknown"`. The `<absolute-path-to-project-root>` is the output of `pwd` at the project root.
+`<bundle-version>` comes from the `name` field in `.claude-plugin/plugin.json` if available, otherwise `"unknown"`.
 
-**On re-run (manifest entry already present, fence already in file, content unchanged):**
+On re-run with manifest entry present and fence content unchanged: no-op, do not re-write.
+On re-run with changed content: re-render the fence block, leave manifest and registry as-is.
 
-No-op. Tell the user "already configured, nothing to do." Do not call `modules/manifest.sh` or `modules/user-registry.sh` again.
+**Install the AFK runner wrapper.**
 
-**On re-run with changed content** (fence present but inner content differs — user edited it or config changed):
-
-Re-render the `## Agent skills` block via the fence insert (step A4), but leave the manifest and registry entries as-is. The mutation record is still valid; only the rendered content changed.
-
-### A6. Install the AFK runner wrapper
-
-After writing the config files, install a thin wrapper at `<project-root>/.claude/memo-flow/bin/afk-cook` that delegates to the installed `afk-cook` skill. The wrapper is a stable, 2-line interface; the real script and prompt template stay in `.claude/skills/afk-cook/` and update automatically when the user runs `npx skills@latest update`.
-
-Create `<project-root>/.claude/memo-flow/bin/` if it doesn't exist. Write `<project-root>/.claude/memo-flow/bin/afk-cook` with exactly these contents:
+Write `<project-root>/.claude/memo-flow/bin/afk-cook` (create directory if needed):
 
 ```bash
 #!/usr/bin/env bash
 exec "$(dirname "$0")/../../skills/afk-cook/afk-cook" "$@"
 ```
 
-The relative path is `../../skills/afk-cook/afk-cook` — two levels up from `.claude/memo-flow/bin/` to reach `.claude/`, then down into `skills/afk-cook/`. Get this depth right or the wrapper exec's a nonexistent path.
+The relative path is two levels up from `.claude/memo-flow/bin/` to reach `.claude/`, then down into `skills/afk-cook/`. Make it executable: `chmod +x`.
 
-Make it executable: `chmod +x <project-root>/.claude/memo-flow/bin/afk-cook`.
-
-Smoke-test the wrapper before claiming Section A6 done. Confirm the symlink-equivalent resolves:
-
+Smoke-test:
 ```bash
 test -x "$(dirname "<project-root>/.claude/memo-flow/bin/afk-cook")/../../skills/afk-cook/afk-cook" && echo "wrapper target reachable"
 ```
 
-If the test fails, the depth count is wrong — recount `..` levels from the wrapper's directory to `.claude/`.
+If the test fails, recount `..` levels. Do NOT copy `slice-prompt.md` into the wrapper directory.
 
-Do NOT copy `slice-prompt.md` into the wrapper directory. The real `afk-cook` script in `.claude/skills/afk-cook/` already reads its prompt template from its own sibling location, so the wrapper inherits the latest template automatically.
+If `afk-cook` skill is not installed in `.claude/skills/`, tell the user and skip the wrapper.
 
-If `<project-root>/.claude/memo-flow/bin/afk-cook` already exists and is NOT this exact wrapper (e.g. an older copy from a previous install), ask the user whether to replace it. Default to replacing, since the wrapper is the auto-update path.
+If the user chose local-markdown in Sub-question 1, add this caveat in the summary:
 
-If the `afk-cook` skill is not installed in `.claude/skills/`, tell the user the AFK runner cannot be installed and they need to re-run `npx skills@latest add GuillermoMurillo/memo-flow -a claude-code` with `afk-cook` selected.
+> Note: the AFK runner only works with GitHub Issues. Every interactive skill works fine with local-markdown, but the batch runner will stay idle. To use AFK, push to GitHub and re-run `/memo-flow`.
 
-### A7. Check for pending hook updates
+### A6. Check for pending hook updates
 
 If `.claude/skills/memo-hooks/install.sh` exists (hooks tier is available), run it with `--check-only` to inspect state without writing anything:
 
@@ -249,22 +265,61 @@ If `.claude/skills/memo-hooks/install.sh` exists (hooks tier is available), run 
 .claude/skills/memo-hooks/install.sh --check-only --scope project 2>/dev/null
 ```
 
-- If it prints "all hooks up to date" — no action needed.
-- If it prints "N hook(s) have updates pending" — relay the message to the user: "Hook updates are pending. Run `/memo-hooks` to review them."
-- If it prints "no install detected" — relay to the user: "Hooks tier is available but not installed. Run `/memo-hooks` to set it up."
-- If the script does not exist (hooks not installed) — skip this check silently.
+Capture the hook state for A7 and A8:
 
-**Do not modify any hook files or settings.json.** This step is read-only for hooks. The `--check-only` flag enforces this; do not substitute `--non-interactive`, which still installs.
+- "all hooks up to date" → `hook_state=up_to_date`
+- "N hook(s) have updates pending" → `hook_state=pending_updates`
+- "no install detected" → `hook_state=available-but-not-installed`
+- script absent → `hook_state=not_available`
 
-### A8. Done
+**Do not modify any hook files or settings.json.** This step is read-only.
 
-Tell the user the setup is complete and which engineering skills will now read from these files. Mention:
-- They can edit `docs/agents/*.md` directly later. Re-running this skill is only necessary if they want to switch issue trackers or restart from scratch.
-- The AFK runner is at `./.claude/memo-flow/bin/afk-cook`. Run it from the project root. The file is a thin wrapper; the real script lives in `.claude/skills/afk-cook/` and updates with `npx skills@latest update`. See the `afk-cook` skill (`.claude/skills/afk-cook/SKILL.md`) for usage.
+### A7. Structured summary
 
-**If the user picked the local-markdown issue tracker in Section A**, add this explicit caveat:
+Emit this block verbatim, substituting `{var}` placeholders:
 
-> Note: the AFK runner (`./.claude/memo-flow/bin/afk-cook`) only works with GitHub Issues. It queues work by calling `gh issue list --label ready-for-agent` and does not read the local-markdown `.scratch/` convention. Every interactive skill works fine with local-markdown, but the batch runner will stay idle. To use AFK, push this repo to GitHub and re-run `/memo-flow` so the tracker config switches.
+```
+**Done.** Skills are set up in `{project-name}`.
+
+**What just changed:**
+- Added `## Agent skills` block to `{CLAUDE.md or AGENTS.md}` (12 lines, fenced)
+- Created `docs/agents/{issue-tracker,triage-labels,domain}.md`
+- Installed AFK runner wrapper at `.claude/memo-flow/bin/afk-cook`
+- Recorded install in `.claude/memo-flow/manifest.json` and `~/.claude/memo-flow/registry.json`
+[- Created 5 triage labels on `{owner}/{repo}`   — include only when tracker=GitHub + remote]
+
+**Try this next:**
+[if hook_state=available-but-not-installed]
+- `/memo-hooks` — enable context-monitor + skill-leaderboard
+[else if hook_state=pending_updates]
+- `/memo-hooks` — review pending updates
+[else]
+- `/to-prd <your idea>` — spec a feature; `/to-issues` follows to break it into AFK slices
+
+**Where to learn more:**
+- `{CLAUDE.md or AGENTS.md} → ## Agent skills` is your index
+- `docs/agents/*.md` for tracker/label/domain specifics
+- `.claude/skills/<skill>/SKILL.md` for each skill's behavior
+
+Re-run `/memo-flow` any time to check health or repair drift.
+```
+
+### A8. Handoff offer (conditional)
+
+Fire this step only when `hook_state=available-but-not-installed` (from A6).
+
+One `AskUserQuestion`:
+
+```
+question: "Hooks tier is available — set it up now?"
+
+options:
+  - Yes, run /memo-hooks (default) — enables context-monitor and skill-leaderboard
+  - Not now — finish here; you can invoke /memo-hooks later
+```
+
+On **Yes**: invoke `Skill(skill="memo-hooks")`. Onboarding continues seamlessly.
+On **Not now**: finish here.
 
 ---
 
@@ -353,16 +408,39 @@ Fires when state is `broken_no_skills` or `broken_no_scaffold`. Print a diagnost
 
 ### C1. Diagnostic
 
-**`broken_no_skills`** — the `## Agent skills` fence block exists in CLAUDE.md/AGENTS.md, but `.claude/skills/` has no skills with a `SKILL.md`. Likely cause: the skills were not installed or were deleted. The scaffold (docs/agents/, config block) survived but the skills themselves are missing.
+Emit the relevant template verbatim.
 
-**`broken_no_scaffold`** — skills are present in `.claude/skills/`, but the `## Agent skills` fence block is missing from CLAUDE.md/AGENTS.md, or `docs/agents/` is absent, or the afk-cook wrapper is missing. Likely cause: manual deletion of config files or a partial install.
+**`broken_no_skills`:**
+
+```
+This project has memo-flow scaffold (docs/agents/, ## Agent skills block in {CLAUDE.md or AGENTS.md})
+but no skills are installed in `.claude/skills/`. The scaffold survived a skills removal or was
+created without a skills install. Re-running `/memo-flow` cannot scaffold skills on its own —
+you need to reinstall the bundle first, then re-run.
+```
+
+**`broken_no_scaffold`:**
+
+```
+Skills are installed in `.claude/skills/` but the memo-flow scaffold is incomplete or missing.
+One or more of the following is absent: the `## Agent skills` block in {CLAUDE.md or AGENTS.md},
+`docs/agents/`, the afk-cook wrapper at `.claude/memo-flow/bin/afk-cook`. Re-running `/memo-flow`
+will fill in exactly what is missing without overwriting files that are already correct.
+```
 
 ### C2. Ask the user
 
 One `AskUserQuestion` (single-select):
 
-- **Re-run installer** — routes back to [Branch A](#branch-a-fresh-install). For `broken_no_skills`, the user will need to re-install skills via `npx skills@latest add`. For `broken_no_scaffold`, the install flow will detect the partial state and fill in what is missing without overwriting existing content.
-- **Cancel** — leave things as-is.
+```
+question: "How do you want to proceed?"
+
+options:
+  - Re-run installer — {for broken_no_skills: 'reinstall skills first (see note below), then routes
+    to fresh-install flow'} / {for broken_no_scaffold: 'routes to fresh-install flow, fills in
+    missing pieces idempotently without overwriting existing content'}
+  - Cancel — leave things as-is; re-run /memo-flow when you're ready
+```
 
 ### C3. Repair
 
