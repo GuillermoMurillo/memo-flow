@@ -226,12 +226,90 @@ _tui_editor() {
   "$editor" "$CONFIG_FILE"
 }
 
+# ── status ────────────────────────────────────────────────────────────────────
+
+# Lifecycle order per the Claude Code event model.
+# Only events that appear here are eligible for display; unknown events
+# fall through to an "Other" bucket at the end.
+_LIFECYCLE_ORDER="SessionStart UserPromptSubmit PreToolUse PostToolUse Notification PreCompact Stop SubagentStop SessionEnd"
+
+# Static mapping: hook name → Claude Code event.
+# Update when a new hook is added to the bundle.
+_hook_event() {
+  case "$1" in
+    context-monitor)   echo "UserPromptSubmit" ;;
+    skill-leaderboard) echo "PostToolUse" ;;
+    *)                 echo "Other" ;;
+  esac
+}
+
+cmd_status() {
+  local config_json
+  config_json=$("$HOOK_CONFIG_SH" get-all "$CONFIG_FILE")
+
+  python3 - "$config_json" "$_LIFECYCLE_ORDER" <<'PYEOF'
+import json, sys
+
+config_json_str, lifecycle_str = sys.argv[1], sys.argv[2]
+lifecycle_order = lifecycle_str.split()
+
+try:
+    data = json.loads(config_json_str)
+except Exception:
+    data = {}
+
+# hook-name → event (must match _hook_event() in the shell script)
+HOOK_EVENTS = {
+    "context-monitor":   "UserPromptSubmit",
+    "skill-leaderboard": "PostToolUse",
+}
+
+# collect only enabled hooks, keyed by event
+by_event: dict[str, list[tuple[str, dict]]] = {}
+for hook, cfg in data.items():
+    if not cfg.get("enabled", False):
+        continue
+    event = HOOK_EVENTS.get(hook, "Other")
+    by_event.setdefault(event, []).append((hook, cfg))
+
+if not by_event:
+    print("(no active hooks)")
+    sys.exit(0)
+
+def format_hook(name: str, cfg: dict) -> str:
+    if name == "context-monitor":
+        mode = cfg.get("mode", "notify")
+        threshold = cfg.get("threshold", 99000)
+        return f"  {name}: ENABLED — mode {mode}, threshold {threshold} tokens"
+    if name == "skill-leaderboard":
+        out = cfg.get("output_file", "~/.claude/memo-flow/skill-usage.json")
+        return f"  {name}: ENABLED — writing to {out}"
+    return f"  {name}: ENABLED"
+
+# print in lifecycle order; any unknown events go at the end
+ordered_events = [e for e in lifecycle_order if e in by_event]
+extra_events   = [e for e in by_event if e not in lifecycle_order]
+
+first = True
+for event in ordered_events + extra_events:
+    if not first:
+        print()
+    first = False
+    print(event)
+    for name, cfg in by_event[event]:
+        print(format_hook(name, cfg))
+PYEOF
+}
+
 # ── dispatch ──────────────────────────────────────────────────────────────────
 
 case "${1:-}" in
   leaderboard)
     shift
     cmd_leaderboard "${1:-10}"
+    ;;
+  status)
+    cmd_status
     ;;
   --set)
     shift
@@ -250,6 +328,7 @@ usage: hooks [<command>]
 
 commands:
   (none)              open TUI editor for config.json
+  status              list active hooks grouped by event lifecycle
   --set <hook>=<bool>              enable/disable toggle (shorthand for <hook>.enabled=<bool>)
   --set <hook>.<field>=<value>     set any scalar field on a hook (string, int, or bool)
   leaderboard [N]     print top N skills by invocation count (default: 10)

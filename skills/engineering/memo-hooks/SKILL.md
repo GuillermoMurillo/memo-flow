@@ -105,18 +105,27 @@ Fires when state is `healthy` — includes the all-disabled-on-purpose case.
 ### B1. Read and summarise current state
 
 ```bash
-cat .claude/memo-flow/config.json
+.claude/memo-flow/bin/memo-hooks status
 ```
 
-Print one line per hook:
+Display active (enabled) hooks grouped by the Claude Code event they fire on, in lifecycle order:
 
-**`context-monitor`** — watches token count, warns before context limit.
-- If enabled: `context-monitor: ENABLED — mode <mode>, threshold <N> tokens` (flag deprecated aliases)
-- If disabled: `context-monitor: disabled — would warn at <N> tokens in <mode> mode if enabled`
+```
+UserPromptSubmit
+  context-monitor: ENABLED — mode <mode>, threshold <N> tokens
 
-**`skill-leaderboard`** — counts skill invocations, writes to `~/.claude/memo-flow/skill-usage.json`.
-- If enabled: `skill-leaderboard: ENABLED — writing to <output_file>`
-- If disabled: `skill-leaderboard: disabled`
+PostToolUse
+  skill-leaderboard: ENABLED — writing to <output_file>
+```
+
+Rules:
+- **Only active (enabled) hooks appear.** Disabled hooks are not listed.
+- **Only event headers with at least one active hook are shown.** No empty sections.
+- **Lifecycle order** (top to bottom): SessionStart → UserPromptSubmit → PreToolUse → PostToolUse → Notification → PreCompact → Stop → SubagentStop → SessionEnd.
+- If no hooks are active, output is `(no active hooks)`.
+
+When `context-monitor` is disabled, also surface its settings as a reminder:
+`context-monitor: disabled — would warn at <N> tokens in <mode> mode if enabled`
 
 ### B2. Offer actions via AskUserQuestion
 
