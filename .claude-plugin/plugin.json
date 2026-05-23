@@ -5,6 +5,7 @@
     "./skills/engineering/afk-cook",
     "./skills/engineering/diagnose",
     "./skills/engineering/memo-hooks",
+    "./skills/engineering/uninstall-memo-flow",
     "./skills/engineering/uninstall-memo-hooks",
     "./skills/engineering/write-a-hook",
     "./skills/engineering/grill-with-docs",
