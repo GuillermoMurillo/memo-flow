@@ -15,6 +15,8 @@ Controlled vocabulary for this repo. When a term here conflicts with a term used
 
 A skill **graduates** by moving from an unpromoted bucket into a promoted one and being added to `plugin.json` and the bucket's `README.md`.
 
+- **Add-on skill**: a memo-flow original skill that composes with a vendored skill (e.g. `/review`, `/tdd`) without modifying its body. Lives in its own folder, is invoked alongside the vendored skill, and survives upstream re-vendor cleanly. The current example is the test-sufficiency reviewer that runs after `/review` to add a Tests axis without forking Matt's `/review` body. See issue #50 for the broader decoupling concern.
+
 ## Workflow vocabulary
 
 - **Slice**: the smallest end-to-end vertical of work that ships independently. A single GitHub issue tagged `ready-for-agent`. Each `/tdd` or `afk-cook` iteration consumes one slice.
@@ -22,6 +24,7 @@ A skill **graduates** by moving from an unpromoted bucket into a promoted one an
 - **Issue tracker**: the system that hosts issues (GitHub Issues, GitLab Issues, local markdown). Mapped per project by `/memo-flow`.
 - **Triage role**: a canonical issue state (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`) mapped to the tracker's actual label strings by `docs/agents/triage-labels.md` in the consumer project.
 - **Domain doc**: the consumer project's authoritative description of its problem domain. Lives at `CONTEXT.md` (single-context project) or per-context files referenced by `CONTEXT-MAP.md` (multi-context project).
+- **Test-sufficiency review**: a review pass that asks whether the existing tests adequately cover the diff's behavior — not whether tests exist (test-gate's job) and not whether they pass (the test runner's job). Reports two severities: *Missing* (high-confidence gaps in branches, error paths, public contracts, integration surfaces) and *Consider* (qualitative judgment calls about plausible failure modes the diff's intent suggests). AI-judgment skill, not a deterministic checker.
 
 ## Installer vocabulary
 

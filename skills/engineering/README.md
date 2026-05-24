@@ -10,6 +10,7 @@ Promoted engineering skills. Listed in root `README.md` and `.claude-plugin/plug
 - [memo-hooks](memo-hooks/SKILL.md): install, update, and manage the memo-flow hooks tier (skill-leaderboard tracer hook + config) in a project.
 - [prototype](prototype/SKILL.md): spike-quality build to validate a direction before committing to TDD.
 - [review](review/SKILL.md): two-axis (Standards + Spec) review of a branch via parallel sub-agents. Invoked directly or as the review gate inside `/ship`.
+- [review-tests](review-tests/SKILL.md): test-sufficiency review of a diff — five-section report (M1–M4 Missing, C Consider) on whether existing tests cover the change. Add-on skill that composes with `/review` without forking it.
 - [ship](ship/SKILL.md): close the loop from finished feature branch to PR open with `Closes #<PRD>`. Runs `/review` as a gate, walks slice → parent PRD, drafts the body, opens the PR.
 - [tdd](tdd/SKILL.md): strict red, green, refactor on a single slice; integration tests over mocks.
 - [to-issues](to-issues/SKILL.md): break a PRD into vertical slices and publish as issues.

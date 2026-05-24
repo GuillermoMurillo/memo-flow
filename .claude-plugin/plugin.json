@@ -12,6 +12,7 @@
     "./skills/engineering/improve-codebase-architecture",
     "./skills/engineering/memo-flow",
     "./skills/engineering/review",
+    "./skills/engineering/review-tests",
     "./skills/engineering/prototype",
     "./skills/engineering/ship",
     "./skills/engineering/tdd",
