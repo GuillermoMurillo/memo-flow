@@ -76,4 +76,13 @@ If `/review` ran in the same session against the same fixed point, the user read
 
 ## Bounds
 
-Read-only. No test writing, no production-code edits, no running the suite, no merging with `/review`'s output, no AST or coverage-tool inference. The user takes findings to `/tdd` if they want tests written.
+Read-only. No test writing, no production-code edits, no running the suite, no merging with `/review`'s output, no AST or coverage-tool inference.
+
+## Follow-ups to offer
+
+After presenting the report, offer the right next step per finding type. Don't auto-execute, surface the option.
+
+- **M1-M4 (concrete Missing).** Each finding is slice-shaped: a specific branch, error path, contract, or boundary that needs a test. Suggest `/to-issues` to file them as `ready-for-agent` slices, then `/afk-cook` to backfill the tests unattended. One issue per finding, finding ID in the title.
+- **C (Consider).** These are hypotheses, not gaps. Suggest `/diagnose` to investigate whether the concern is real before deciding to write a test or fix the code. Don't file a C finding as `ready-for-agent` without diagnosis first; agents need deterministic specs.
+
+For a one- or two-finding report, writing the tests inline in the current session is usually less friction than filing issues. For a long report, the issue route scales better.
