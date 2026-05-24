@@ -17,6 +17,8 @@ Composes with `/review` without forking it. `/review` answers Standards + Spec; 
 
 Same as `/review`. Whatever the user said is the fixed point: SHA, branch, tag, `main`, `HEAD~5`. If unspecified, ask. Then capture `git diff <fp>...HEAD` (three-dot, against merge-base) and `git log <fp>..HEAD --oneline`.
 
+If `/review` ran earlier in this session, surface its fixed point and confirm match before proceeding. Mismatched fixed points produce reports that look composable but aren't.
+
 ### 2. Identify the spec source
 
 In order:
@@ -43,6 +45,8 @@ Use `general-purpose`. Pass it the diff command, commit list, spec contents (or 
 > - **C, Consider.** Lower-confidence judgment: concurrency, ordering, idempotency, partial failures, regressions in adjacent code, performance cliffs. Cite what worries you and why.
 >
 > Format findings as `M1.1`, `M1.2`, ..., `C.1`, `C.2`. Skip empty sections, don't pad. Under 600 words.
+>
+> If the diff has no executable code (docs, config, schema-only), M1-M4 may legitimately be empty. Report what you find; don't reach into C to fill space.
 
 ### 4. Present
 
@@ -76,13 +80,13 @@ If `/review` ran in the same session against the same fixed point, the user read
 
 ## Bounds
 
-Read-only. No test writing, no production-code edits, no running the suite, no merging with `/review`'s output, no AST or coverage-tool inference.
+Read-only. No test writing, no production-code edits, no running the suite, does not consume or rewrite `/review`'s output, no AST or coverage-tool inference.
 
 ## Follow-ups to offer
 
 After presenting the report, offer the right next step per finding type. Don't auto-execute, surface the option.
 
 - **M1-M4 (concrete Missing).** Each finding is slice-shaped: a specific branch, error path, contract, or boundary that needs a test. Suggest `/to-issues` to file them as `ready-for-agent` slices, then `/afk-cook` to backfill the tests unattended. One issue per finding, finding ID in the title.
-- **C (Consider).** These are hypotheses, not gaps. Suggest `/diagnose` to investigate whether the concern is real before deciding to write a test or fix the code. Don't file a C finding as `ready-for-agent` without diagnosis first; agents need deterministic specs.
+- **C (Consider).** A C finding is a qualitative concern, not a confirmed defect — a plausible failure mode the diff's intent suggests. Hand it to `/diagnose` as a Phase-1 seed: the work is constructing a repro that turns the concern into a real signal (or concluding it can't be reproduced and explicitly bailing). Don't file a C as `ready-for-agent` first — without a repro the slice has no pass/fail signal for the agent to chase.
 
 For a one- or two-finding report, writing the tests inline in the current session is usually less friction than filing issues. For a long report, the issue route scales better.
