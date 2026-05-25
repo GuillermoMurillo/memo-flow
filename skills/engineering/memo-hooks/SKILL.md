@@ -162,6 +162,38 @@ Rules:
 When `context-monitor` is disabled, also surface its settings as a reminder:
 `context-monitor: disabled — would warn at <N> tokens in <mode> mode if enabled`
 
+### B1.5. Check for pending hooks (bundle-vs-installed diff)
+
+Before presenting the management menu, detect hooks that shipped in the bundle but are not yet installed in this project.
+
+A hook is **pending** when any of these is true:
+- Its script (`<hook>.sh`) is in the bundle (`hooks/` under the skill folder) but absent from `.claude/memo-flow/hooks/`.
+- Its key is absent from `.claude/memo-flow/config.json`.
+
+Run the installer in non-interactive mode to collect pending hooks:
+
+```bash
+bash .claude/skills/memo-hooks/install.sh \
+  --project-dir "$(pwd)" \
+  --non-interactive \
+  2>/dev/null
+```
+
+The installer's `_get_missing_hooks` logic detects bundle-vs-hooks-dir gaps and installs them automatically (copies script, inserts config key with `enabled: false`, adds settings entry). After the installer exits, re-run `status` to get a fresh view.
+
+> **This check is transparent to the user when there are no pending hooks.** Only surface the install action when the installer actually copied something new (i.e., check if any hooks were mentioned in its output as "installed new hook: ...").
+
+When the installer reports one or more newly installed hooks, emit a brief notice before the B2 menu:
+
+```
+New hook(s) installed from the latest bundle:
+  • handoff-clipboard — (disabled by default; enable below if you want it)
+```
+
+Then continue to B2 as normal. Do **not** auto-enable newly installed hooks — the user must opt in.
+
+The `state.sh detect` output is unchanged by this step; no new state is emitted.
+
 ### B2. Offer actions via AskUserQuestion
 
 Tailor options to current state. Always include:
