@@ -3,16 +3,19 @@
 #
 # Commands:
 #   detect <skills_dir> <claude_md> <docs_agents_dir> [<afk_cook>]
-#     Print one of: not_installed | healthy | broken_no_skills | broken_no_scaffold
+#     Print one of: not_installed | fresh | healthy | broken_no_skills | broken_no_scaffold
 #     Pure: reads filesystem only, no side effects.
 #
 # States:
 #   not_installed       — no memo-flow skills in skills_dir, no agent-skills fence in claude_md
+#   fresh               — skills present, every scaffold artifact absent
+#                         (no fence, no docs/agents, and afk_cook absent when arg supplied).
+#                         Common state after `npx skills add` but before first /memo-flow run.
 #   healthy             — skills present, agent-skills fence present, docs/agents present
 #                         (afk_cook file present when afk_cook arg supplied)
 #   broken_no_skills    — agent-skills fence present but skills_dir empty or missing memo-flow skills
-#   broken_no_scaffold  — skills present but agent-skills fence or docs/agents missing
-#                         (or afk_cook arg supplied but file absent)
+#   broken_no_scaffold  — skills present and at least one scaffold artifact exists but at least
+#                         one is missing (genuine partial state from interrupted or hand-edited install)
 
 set -euo pipefail
 
@@ -60,13 +63,36 @@ case "$cmd" in
       afk_cook_ok=false
     fi
 
+    # docs_present and (if checked) afk_cook_present as separate signals
+    docs_present=false
+    [ -d "$docs_agents_dir" ] && docs_present=true
+
+    afk_cook_checked=false
+    afk_cook_present=false
+    if [ -n "$afk_cook" ]; then
+      afk_cook_checked=true
+      [ -f "$afk_cook" ] && afk_cook_present=true
+    fi
+
     # state determination (priority order)
     if ! $skills_present && ! $fence_present; then
       echo "not_installed"
     elif $fence_present && ! $skills_present; then
       echo "broken_no_skills"
     elif $skills_present; then
-      if ! $fence_present || ! [ -d "$docs_agents_dir" ] || ! $afk_cook_ok; then
+      # count scaffold artifacts present vs missing
+      any_scaffold_present=false
+      any_scaffold_missing=false
+
+      if $fence_present; then any_scaffold_present=true; else any_scaffold_missing=true; fi
+      if $docs_present; then any_scaffold_present=true; else any_scaffold_missing=true; fi
+      if $afk_cook_checked; then
+        if $afk_cook_present; then any_scaffold_present=true; else any_scaffold_missing=true; fi
+      fi
+
+      if ! $any_scaffold_present; then
+        echo "fresh"
+      elif $any_scaffold_missing; then
         echo "broken_no_scaffold"
       else
         echo "healthy"

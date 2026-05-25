@@ -18,13 +18,14 @@ bash "$(find .claude/skills -name base-state.sh -path '*/memo-flow/*' 2>/dev/nul
   "$(pwd)/.claude/memo-flow/bin/afk-cook"
 ```
 
-Output is one of: `not_installed` | `healthy` | `broken_no_skills` | `broken_no_scaffold`
+Output is one of: `not_installed` | `fresh` | `healthy` | `broken_no_skills` | `broken_no_scaffold`
 
 Route based on the output:
 
 | State | Branch |
 |---|---|
 | `not_installed` | [Fresh install](#branch-a-fresh-install) |
+| `fresh` | [Fresh install](#branch-a-fresh-install) |
 | `healthy` | [Status and health checks](#branch-b-status-and-health-checks) |
 | `broken_no_skills` | [Broken / repair](#branch-c-broken--repair) |
 | `broken_no_scaffold` | [Broken / repair](#branch-c-broken--repair) |
@@ -33,7 +34,7 @@ Route based on the output:
 
 ## Branch A: Fresh install
 
-Fires when state is `not_installed` — the project has never had memo-flow set up.
+Fires when state is `not_installed` (skills never installed) or `fresh` (skills installed via `npx skills add` but `/memo-flow` has not run yet, so no scaffold artifacts exist). Both are first-install paths — do not surface a "broken" diagnostic on either.
 
 Scaffold the per-repo configuration that the engineering skills assume:
 

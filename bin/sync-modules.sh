@@ -34,6 +34,7 @@ CONSUMER_PAIRS=(
   "drift-detector.sh:memo-flow"
   "bundle-inventory.sh:memo-flow"
   "hook-config.sh:uninstall-memo-hooks memo-hooks"
+  "base-state.sh:memo-flow"
 )
 
 MODE="write"
