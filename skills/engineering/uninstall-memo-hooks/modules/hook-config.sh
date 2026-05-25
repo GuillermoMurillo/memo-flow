@@ -34,6 +34,9 @@ _DEFAULTS='{
   "skill-leaderboard": {
     "enabled": true,
     "output_file": "~/.claude/skill-stats.json"
+  },
+  "handoff-clipboard": {
+    "enabled": true
   }
 }'
 

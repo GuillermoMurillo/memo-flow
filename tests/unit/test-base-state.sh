@@ -176,6 +176,29 @@ result="$(detect "$AFN_COOK" 2>/dev/null)"
   && ok "skills + fence + docs/agents, afk-cook arg provided but missing → broken_no_scaffold" \
   || fail "broken_no_scaffold (afk-cook missing)" "got '$result'"
 
+# ── fresh: skills present, zero scaffold artifacts ──────────────────────────
+
+echo ""
+echo "--- fresh ---"
+
+# skills present, no fence, no docs/agents, no afk_cook arg supplied
+reset_all
+seed_skills
+result="$(detect 2>/dev/null)"
+[[ "$result" == "fresh" ]] \
+  && ok "skills only, no scaffold → fresh" \
+  || fail "fresh (skills only, no afk-cook arg)" "got '$result'"
+
+# skills present, no fence, no docs/agents, afk_cook arg supplied but file missing
+# This counts as "all scaffold missing" because none of the three were ever created
+# by /memo-flow. The state is still fresh, not broken.
+reset_all
+seed_skills
+result="$(detect "$AFN_COOK" 2>/dev/null)"
+[[ "$result" == "fresh" ]] \
+  && ok "skills only, afk-cook arg + file missing → fresh" \
+  || fail "fresh (afk-cook arg supplied)" "got '$result'"
+
 # ── purity: no side effects ───────────────────────────────────────────────────
 
 echo ""
