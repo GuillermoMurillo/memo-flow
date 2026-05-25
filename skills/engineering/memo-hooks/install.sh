@@ -576,8 +576,13 @@ done
 
 if [ "$FRESH_CONFIG" = "1" ]; then
   manifest_append_if_absent "$MANIFEST" \
-    "{\"id\":\"memo-flow:hook-config\",\"kind\":\"file_written\",\"target\":\".claude/memo-flow/config.json\",\"customized\":false}"
+    "{\"id\":\"memo-flow:hook-config\",\"kind\":\"user_config\",\"target\":\".claude/memo-flow/config.json\",\"customized\":false}"
 fi
+
+# Migration: existing installs may have registered config.json as file_written,
+# which causes the drift detector to report it as drifted-edited on every run.
+# Rewrite to user_config so it is no longer tracked for drift.
+"$MANIFEST_SH" migrate-kind "$MANIFEST" "memo-flow:hook-config" "user_config"
 
 # ── add gitignore entries ─────────────────────────────────────────────────────
 

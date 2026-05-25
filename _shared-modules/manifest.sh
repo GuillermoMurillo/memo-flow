@@ -233,6 +233,50 @@ os.rename('$tmpfile', '$file')
 " || { rm -f "$tmpfile"; exit 1; }
     ;;
 
+  migrate-kind)
+    file="${2:-}"
+    mutation_id="${3:-}"
+    new_kind="${4:-}"
+    if [ -z "$file" ] || [ -z "$mutation_id" ] || [ -z "$new_kind" ]; then
+      echo "usage: manifest.sh migrate-kind <file> <mutation-id> <new-kind>" >&2
+      exit 1
+    fi
+    if [ ! -f "$file" ]; then
+      echo "manifest: file not found: $file" >&2
+      exit 1
+    fi
+    dir="$(dirname "$file")"
+    tmpfile="$(mktemp "$dir/.manifest-tmp-XXXXXX")"
+    python3 -c "
+import json, os, sys
+
+try:
+    data = json.load(open('$file'))
+except Exception as e:
+    print(f'manifest: invalid JSON: {e}', file=sys.stderr)
+    sys.exit(1)
+
+found = False
+changed = False
+for m in data.get('mutations', []):
+    if m.get('id') == '$mutation_id':
+        found = True
+        if m.get('kind') != '$new_kind':
+            m['kind'] = '$new_kind'
+            changed = True
+        break
+
+if not found or not changed:
+    os.unlink('$tmpfile')
+    sys.exit(0)
+
+with open('$tmpfile', 'w') as f:
+    json.dump(data, f, indent=2)
+    f.write('\n')
+os.rename('$tmpfile', '$file')
+" || { rm -f "$tmpfile"; exit 1; }
+    ;;
+
   get-version)
     file="${2:-}"
     if [ -z "$file" ]; then
