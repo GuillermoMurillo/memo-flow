@@ -24,8 +24,9 @@ Ask the author each question in order. Do not skip any. Do not write files until
 - `PreCompact` — fires before context compaction; can block (exit 1)
 
 **Tool/pattern matcher** (if `PreToolUse` or `PostToolUse`):
-- Tool name glob or empty for "all tools"
-- Example: `Bash`, `Edit`, `*`
+- Memo-flow convention: settings.json matcher is always `""` (empty / fires on every tool call). Any tool-name or path-pattern filtering happens **inside the hook script** (typically against `tool_input.tool_name` / `tool_input.file_path`).
+- Collect the desired filter here as a *script-level* constraint, not a settings.json value. The scaffold will encode it inside the script body.
+- Example: filter to `Write` calls where `file_path` matches `handoff-*.md`.
 
 **Exit-code contract** — pick one:
 - `advisory` — always exits 0; emits warnings to stderr only
@@ -132,9 +133,13 @@ event=$(cat)
 # ... hook-specific logic ...
 ```
 
-#### 3b. hook-config.sh default block
+#### 3b. config defaults — **two files, deliberately different**
 
-Add the hook's entry to `_DEFAULTS` in `memo-hooks/modules/hook-config.sh`:
+Memo-flow carries two copies of the per-hook config defaults. They share keys but disagree on `enabled`. Missing either leaves fresh installs broken.
+
+**File 1: `memo-hooks/modules/hook-config.sh` — `_DEFAULTS` block**
+
+Used by the hook script's fail-open path when `config.json` is missing or unparseable. Convention: `enabled: true` (don't break if config disappears).
 
 ```json
 "<name>": {
@@ -144,7 +149,23 @@ Add the hook's entry to `_DEFAULTS` in `memo-hooks/modules/hook-config.sh`:
 }
 ```
 
-#### 3c. settings.json template entry
+**File 2: `memo-hooks/install.sh` — the inline fresh-config heredoc (`install.sh:476-488`)**
+
+Used when `install.sh` first writes `.claude/memo-flow/config.json`. Convention: `enabled: false` (opt-in on fresh install, user enables per hook via `/memo-hooks`).
+
+```json
+"<name>": {
+  "enabled": false,
+  "<key1>": <default1>,
+  "<key2>": <default2>
+}
+```
+
+> The two `enabled` values are intentionally inverted. Same keys/values otherwise. If you copy-paste between files, double-check you've flipped `enabled`.
+
+> Known drift: existing hooks already disagree on non-`enabled` keys (e.g. `context-monitor.mode` is `"auto"` in `_DEFAULTS` but `"notify"` in `install.sh`). That's an upstream bug — for new hooks, keep all non-`enabled` keys identical between the two files.
+
+#### 3c. settings.json template entry + install.sh wiring
 
 The entry that `install.sh` will register. Show the exact JSON:
 
@@ -152,21 +173,47 @@ The entry that `install.sh` will register. Show the exact JSON:
 {
   "id": "memo-flow:<name>",
   "command": ".claude/memo-flow/hooks/<name>.sh",
-  "type": "stdin"
+  "type": "command"
 }
 ```
 
-Registered under the hook's trigger event key in `.claude/settings.json`.
+> **Important:** `"type": "command"`, not `"stdin"`. Claude Code silently ignores `type: "stdin"` entries; `install.sh` even ships a repair function (`_repair_broken_settings_entries`) that rewrites `stdin → command` for memo-flow entries on every run. Always emit `command`.
 
-Show the `install.sh` snippet the author must add (the `"$SETTINGS_SH" insert` call and the `manifest_append_if_absent` call).
+Registered under the hook's trigger event key in `.claude/settings.json`, with an **empty matcher** (memo-flow convention — see step 1).
 
-#### 3d. README row
+The `install.sh` wiring lives in **two locations** — they cannot be bundled together because the manifest call references `${settings_rel}`, which is only defined between the two blocks.
 
-Add a row to `skills/engineering/memo-hooks/SKILL.md` under "What gets installed":
+**Location A** — after the last `"$SETTINGS_SH" insert` call (≈ `install.sh:518`):
+
+```bash
+<name>_cmd=".claude/memo-flow/hooks/<name>.sh"
+<name>_hook="{\"id\":\"memo-flow:<name>\",\"command\":\"${<name>_cmd}\",\"type\":\"command\"}"
+
+"$SETTINGS_SH" insert "$SETTINGS_JSON" "<EVENT>" "" "$<name>_hook"
+```
+
+**Location B** — after the last existing `settings_entry` manifest append (≈ `install.sh:529`), where `${settings_rel}` and `${SCOPE}` are in scope:
+
+```bash
+manifest_append_if_absent "$MANIFEST" \
+  "{\"id\":\"memo-flow:settings-<name>\",\"kind\":\"settings_entry\",\"target\":\"${settings_rel}\",\"hook_id\":\"memo-flow:<name>\",\"scope\":\"${SCOPE}\",\"customized\":false}"
+```
+
+Note the `settings-mutator.sh insert` signature: `<file> <event> <matcher> <hook-json>`. The matcher is the third positional arg and is always `""` for memo-flow hooks (script-internal filtering, per step 1).
+
+#### 3d. README row (memo-hooks SKILL.md, Branch A2 opt-in prompt)
+
+Add a row to the **Branch A2 sub-question 1 list** in `skills/engineering/memo-hooks/SKILL.md`. That's the bulleted list of hooks shown during fresh install's per-hook opt-in `multiSelect`. As of writing, the list lives near the line beginning `- **\`context-monitor\`**`.
+
+Use the existing format — kebab-case name in backticks, em-dash, prose description, optional default callout:
 
 ```
-**`<name>.sh`** (<EVENT> hook): <one-line description>. Disabled via `config.json` toggle. Fail-open if config is missing.
+- **`<name>`** — <one-line user-facing description of what the hook does and when it fires>. <Optional: default behavior or threshold note>.
 ```
+
+Example (existing): `- **`context-monitor`** — Watches your session's token count on every UserPromptSubmit. When you're nearing the context limit, it injects a warning so you can run /handoff before reasoning degrades. Default threshold: 99 000 tokens.`
+
+> Do **not** invent a "What gets installed" section — none exists. The opt-in list is the canonical surface where new hooks become discoverable to consumers.
 
 ### 4. Confirm before writing
 
@@ -174,15 +221,20 @@ Show the author a summary of all four outputs. Ask: "Write these files? [y/N]". 
 
 ### 5. Write files
 
-Write the hook script, update hook-config.sh `_DEFAULTS`, and update memo-hooks SKILL.md. Note that `settings.json` template and `install.sh` snippets are shown to the author but applied manually (they require install-time decisions).
+Write **every** output. Do not leave any "manual" steps — an unregistered hook is a dead hook.
+
+1. Write the hook script at `skills/engineering/memo-hooks/hooks/<name>.sh` and `chmod +x` it.
+2. Update `memo-hooks/modules/hook-config.sh` `_DEFAULTS` (File 1 in step 3b).
+3. Update `memo-hooks/install.sh` inline fresh-config heredoc (File 2 in step 3b).
+4. Update `memo-hooks/install.sh` with both wiring blocks from step 3c — Location A (≈ line 518: hook-var assignment + `"$SETTINGS_SH" insert`) and Location B (≈ line 529: `manifest_append_if_absent` for the settings entry). Do not collapse them; `${settings_rel}` is only defined between the two.
+5. Update `memo-hooks/SKILL.md` with the README row from step 3d.
 
 ### 6. Done
 
-Confirm the four outputs were written or shown. Remind the author:
+Confirm all five outputs from step 5 were written. Remind the author:
 - Add an integration test under `tests/` for the new hook
-- Update `skills/engineering/memo-hooks/install.sh` to register the new settings entry
-- Add a description row for the new hook in `memo-hooks/SKILL.md` Branch A2 (the per-hook opt-in `multiSelect` prompt) so users see it during fresh install
 - Run `bash bin/run-tests.sh` to verify end-to-end
+- Sanity-check by running `bash skills/engineering/memo-hooks/install.sh --check-only --project-dir <test-project>` against a scratch project to confirm the new hook lands correctly
 
 > **Opt-in flow:** once the hook is registered via `install.sh`, it automatically participates in the Branch A2 `multiSelect` prompt the next time a user runs `/memo-hooks` on a fresh project. Adding a description row to `memo-hooks/SKILL.md` Branch A2 is required so the entry is populated and meaningful — an undescribed hook appears in the list but gives users no basis for choosing it.
 

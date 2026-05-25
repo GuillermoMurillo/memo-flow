@@ -483,6 +483,9 @@ if [ ! -f "$config_json" ]; then
   "skill-leaderboard": {
     "enabled": false,
     "output_file": "~/.claude/memo-flow/skill-usage.json"
+  },
+  "handoff-clipboard": {
+    "enabled": false
   }
 }
 EOF
@@ -517,6 +520,11 @@ monitor_hook="{\"id\":\"memo-flow:context-monitor\",\"command\":\"${monitor_cmd}
 
 "$SETTINGS_SH" insert "$SETTINGS_JSON" "UserPromptSubmit" "" "$monitor_hook"
 
+handoff_clipboard_cmd=".claude/memo-flow/hooks/handoff-clipboard.sh"
+handoff_clipboard_hook="{\"id\":\"memo-flow:handoff-clipboard\",\"command\":\"${handoff_clipboard_cmd}\",\"type\":\"command\"}"
+
+"$SETTINGS_SH" insert "$SETTINGS_JSON" "PostToolUse" "" "$handoff_clipboard_hook"
+
 settings_rel=".claude/settings.json"
 if [ "$SCOPE" = "user" ]; then
   settings_rel="~/.claude/settings.json"
@@ -527,6 +535,9 @@ manifest_append_if_absent "$MANIFEST" \
 
 manifest_append_if_absent "$MANIFEST" \
   "{\"id\":\"memo-flow:settings-skill-context-monitor\",\"kind\":\"settings_entry\",\"target\":\"${settings_rel}\",\"hook_id\":\"memo-flow:context-monitor\",\"scope\":\"${SCOPE}\",\"customized\":false}"
+
+manifest_append_if_absent "$MANIFEST" \
+  "{\"id\":\"memo-flow:settings-handoff-clipboard\",\"kind\":\"settings_entry\",\"target\":\"${settings_rel}\",\"hook_id\":\"memo-flow:handoff-clipboard\",\"scope\":\"${SCOPE}\",\"customized\":false}"
 
 # ── update registry ───────────────────────────────────────────────────────────
 
