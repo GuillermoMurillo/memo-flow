@@ -36,10 +36,24 @@ The interactive surface. Type `/whatever`, the skill prompts you, you reply.
 
 The stuff that runs without you typing.
 
-**Hooks.** Enable via `/memo-hooks`. Two hooks ship today:
+**Hooks.** Enable via `/memo-hooks`. Three hooks ship today:
 
 - `context-monitor`: warns when your session token count nears the smart-zone limit, so you can `/handoff` before reasoning degrades.
 - `skill-leaderboard`: counts which skills you actually invoke. Run `memo-hooks leaderboard` any time.
+- `handoff-clipboard`: after `/handoff` writes its temp file, copies a paste-ready `Read: <path>` to your system clipboard so the next session is one paste away. macOS + Linux.
+
+**In the lab (not shipped yet, tracked in the [issue tracker](https://github.com/GuillermoMurillo/memo-flow/issues)):**
+
+- `design-first`: block UI / frontend code edits when no prototype has been run yet, so design gets sketched before pixels get committed.
+- `security-vulns`: surface dependency and code vulnerability scans inline at PreToolUse, before risky writes land.
+- `philips-hue-actions`: trigger home-automation scenes from Claude Code activity — flash the lights when a long AFK run finishes, dim the office when `/diagnose` enters a deep loop, you decide. The hook is just glue; the scenes are yours.
+- …and a lot more in flight.
+
+**Got an idea for a hook? Build it or ask for it.**
+
+- Built one already? Run `/write-a-hook` to scaffold it consistent with the bundle, then open a PR against [GuillermoMurillo/memo-flow](https://github.com/GuillermoMurillo/memo-flow). The skill enforces the contract so the review is mostly about the idea, not the plumbing.
+- Have an idea but not the time? [Open a feature request](https://github.com/GuillermoMurillo/memo-flow/issues/new) — label `enhancement`, describe the trigger + the behavior + the user problem it solves.
+- Spot a hook this README should obviously have and doesn't? Same channel. Better still: send the PR.
 
 **AFK runner.** `afk-cook` is a bash loop that queues every `ready-for-agent` GitHub issue and runs one fresh `claude -p` per slice in dependency order. Walk away, come back to shipped commits.
 
