@@ -4,9 +4,14 @@ You want to run multiple coding agents in parallel. You don't want to babysit ea
 
 The hard part is not the agent. It's keeping the agent's attention on the spec instead of letting the session accumulate, lose the plot, and start guessing.
 
-Skills help. A good `/tdd` or `/diagnose` is real value. But skills are a la carte. You still have to remember which to invoke, manage the session, watch context bleed, and ship one slice at a time from the same terminal.
+Most agent tooling assumes you only work on one thing at a time. Real life is a handful of repos in flight: a side project, the day job, the prototype from yesterday. Conventions you set up in one project don't carry. The agent forgets between sessions. You start each new repo from scratch.
 
-memo-flow turns the skills into a workflow. The spec lives in the issue tracker. Each slice runs in a brand-new agent invocation against that issue body, not against the conversation. Slices ship in dependency order, in parallel if you want. You stop watching the agent. You start directing the queue.
+memo-flow is what I built so I could actually work like that.
+
+- **Built on [Matt Pocock's skills](https://github.com/mattpocock/skills).** Foundation — `/tdd`, `/triage`, `/diagnose`. memo-flow adds the ones missing for my workflow: state-routed installs, PRD-closing PRs, hook authoring, clean uninstalls.
+- **Cross-project, not per-project.** A global registry knows which projects have memo-flow installed. Each project keeps its own config, but you stop re-explaining the same conventions to yourself.
+- **Hooks for the boring repetition.** Context warnings, handoff clipboard, usage tracking. Each one is a tiny bash script with a single config toggle — flip it from the terminal or `/memo-hooks` without breaking flow.
+- **Learns what you use.** The leaderboard tracks invocations per project, so the tool can adapt over time to how you actually work, not a generic guess.
 
 Built on top of [Matt Pocock's skills](https://github.com/mattpocock/skills), with a runner, hooks, and an installer that enforce the discipline instead of leaving it to your memory.
 
@@ -20,7 +25,7 @@ The workflow itself is portable. The skills are one packaging. See [Other agents
 
 ### Tier 1: Skills (always installed)
 
-The interactive surface. Type `/whatever`, the skill prompts you, you reply.
+Slash commands you invoke by name — `/tdd`, `/diagnose`, `/triage`, and so on. You type the command, the skill asks for what it needs, then it runs. Same shape as any other Claude Code skill; the difference is the bundle is curated for the workflow described above.
 
 **Matt's skills (vendored as-is):** `tdd`, `triage`, `to-prd`, `to-issues`, `diagnose`, `grill-with-docs`, `prototype`, `review`, `improve-codebase-architecture`, `zoom-out`, `grill-me`, `handoff`, `write-a-skill`, `caveman`.
 
