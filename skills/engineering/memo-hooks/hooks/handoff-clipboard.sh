@@ -3,8 +3,8 @@
 #
 # Fires after every tool call (memo-flow convention: empty matcher in settings.json).
 # Filters in-script: only acts on Write tool calls whose file_path matches handoff-*.md.
-# On match, copies the absolute path to the system clipboard and emits a one-line
-# stderr confirmation. Advisory — never blocks.
+# On match, copies "Read: <absolute-path>" to the system clipboard so the value is
+# paste-ready into a fresh session. Emits a one-line stderr confirmation. Advisory — never blocks.
 #
 # Config location: $MEMO_FLOW_CONFIG (env) or ./.claude/memo-flow/config.json (cwd)
 # Config key: "handoff-clipboard"
@@ -56,7 +56,7 @@ try:
     if e.get('tool_name') != 'Write':
         sys.exit(0)
     fp = e.get('tool_input', {}).get('file_path', '')
-    if fp and re.search(r'handoff-[A-Za-z0-9]+\.md$', fp):
+    if fp and re.search(r'handoff-[A-Za-z0-9]+\.md(\.[A-Za-z0-9]+)?$', fp):
         print(fp)
 except Exception:
     pass
@@ -66,18 +66,20 @@ if [ -z "$target" ]; then
   exit 0
 fi
 
+payload="Read: $target"
+
 uname_s=$(uname -s)
 case "$uname_s" in
   Darwin)
-    printf '%s' "$target" | pbcopy
+    printf '%s' "$payload" | pbcopy
     ;;
   Linux)
     if [ -n "${WAYLAND_DISPLAY:-}" ] && command -v wl-copy >/dev/null 2>&1; then
-      printf '%s' "$target" | wl-copy
+      printf '%s' "$payload" | wl-copy
     elif command -v xclip >/dev/null 2>&1; then
-      printf '%s' "$target" | xclip -selection clipboard -in
+      printf '%s' "$payload" | xclip -selection clipboard -in
     elif command -v xsel >/dev/null 2>&1; then
-      printf '%s' "$target" | xsel --clipboard --input
+      printf '%s' "$payload" | xsel --clipboard --input
     else
       echo "[handoff-clipboard] no clipboard tool found (install wl-clipboard, xclip, or xsel)" >&2
       exit 0
@@ -89,5 +91,5 @@ case "$uname_s" in
     ;;
 esac
 
-echo "[handoff-clipboard] copied to clipboard: $target" >&2
+echo "[handoff-clipboard] copied to clipboard: $payload" >&2
 exit 0
