@@ -100,14 +100,14 @@ npx skills@latest update
 
 The skills above ship Matt Pocock's upstream bundle plus these originals, built for the cross-project workflow this repo is designed around:
 
-- `/memo-flow` — state-routed installer for the base tier. Detects fresh / healthy / broken and routes accordingly.
-- `/memo-hooks` — companion installer for the hooks tier. Per-hook opt-in, drift repair, leaderboard.
-- `/ship` — finished branch → open PR with `Closes #<PRD>` baked in. Runs `/review` as a gate.
-- `/write-a-hook` — scaffold a new hook (script + config + settings entry + README row, all consistent).
-- `/pager` — portable display mode for small screens (glasses, phone, watch).
-- `/uninstall-memo-flow`, `/uninstall-memo-hooks` — reverse everything cleanly.
+- `/memo-flow`: state-routed installer for the base tier. Detects fresh / healthy / broken and routes accordingly.
+- `/memo-hooks`: companion installer for the hooks tier. Per-hook opt-in, drift repair, leaderboard.
+- `/ship`: finished branch to open PR with `Closes #<PRD>` baked in. Runs `/review` as a gate.
+- `/write-a-hook`: scaffold a new hook (script + config + settings entry + README row, all consistent).
+- `/pager`: portable display mode for small screens (glasses, phone, watch).
+- `/uninstall-memo-flow`, `/uninstall-memo-hooks`: reverse everything cleanly.
 
-Everything else (`/tdd`, `/triage`, `/diagnose`, `/to-prd`, `/to-issues`, `/ship`'s `/review` dependency, `/handoff`, `/grill-me`, `/grill-with-docs`, `/prototype`, `/improve-codebase-architecture`, `/zoom-out`, `/write-a-skill`, `/caveman`) is vendored as-is from [Matt's upstream](https://github.com/mattpocock/skills) — see `THIRD_PARTY_NOTICES.md`.
+Everything else (`/tdd`, `/triage`, `/diagnose`, `/to-prd`, `/to-issues`, `/ship`'s `/review` dependency, `/handoff`, `/grill-me`, `/grill-with-docs`, `/prototype`, `/improve-codebase-architecture`, `/zoom-out`, `/write-a-skill`, `/caveman`) is vendored as-is from [Matt's upstream](https://github.com/mattpocock/skills). See `THIRD_PARTY_NOTICES.md`.
 
 ## Day-to-day
 
