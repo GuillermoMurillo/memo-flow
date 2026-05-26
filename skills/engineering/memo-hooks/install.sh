@@ -582,6 +582,12 @@ fi
 # Migration: existing installs may have registered config.json as file_written,
 # which causes the drift detector to report it as drifted-edited on every run.
 # Rewrite to user_config so it is no longer tracked for drift.
+#
+# Scope audit (issue #65): config.json is the only user-mutable defaults file
+# emitted by the memo-flow tier today. The base tier emits doc_block (fenced
+# region in CLAUDE.md / AGENTS.md) and seeds docs/agents/*.md from templates
+# without adding them to the manifest. Neither passes through the file_written
+# drift loop, so no further migration is needed.
 "$MANIFEST_SH" migrate-kind "$MANIFEST" "memo-flow:hook-config" "user_config"
 
 # ── add gitignore entries ─────────────────────────────────────────────────────
