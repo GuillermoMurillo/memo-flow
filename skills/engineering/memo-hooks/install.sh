@@ -187,6 +187,33 @@ print('yes' if '$id' in ids else 'no')
   fi
 }
 
+# ── CLI wrapper writer ────────────────────────────────────────────────────────
+# Generates <project>/.claude/memo-flow/bin/memo-hooks. The wrapper resolves
+# the project root from BASH_SOURCE (its own real-file location in the
+# project) and exports MEMO_FLOW_CONFIG / MEMO_FLOW_SETTINGS before exec'ing
+# the underlying CLI — otherwise the CLI's $SCRIPT_DIR ancestry walk
+# resolves through the .claude/skills symlink and lands in the source repo
+# under `npx skills add -a claude-code`.
+
+_write_cli_wrapper() {
+  local bin_dir="$PROJECT_DIR/.claude/memo-flow/bin"
+  mkdir -p "$bin_dir"
+  local wrapper="$bin_dir/memo-hooks"
+
+  cat > "$wrapper" <<'WRAPPER_EOF'
+#!/usr/bin/env bash
+bin_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+project_root="$(cd "$bin_dir/../../.." && pwd)"
+export MEMO_FLOW_CONFIG="${MEMO_FLOW_CONFIG:-$project_root/.claude/memo-flow/config.json}"
+export MEMO_FLOW_SETTINGS="${MEMO_FLOW_SETTINGS:-$project_root/.claude/settings.json}"
+exec "$bin_dir/../../skills/memo-hooks/bin/memo-hooks" "$@"
+WRAPPER_EOF
+  chmod +x "$wrapper"
+
+  manifest_append_if_absent "$MANIFEST" \
+    "{\"id\":\"memo-flow:memo-hooks-wrapper\",\"kind\":\"cli_wrapper\",\"target\":\".claude/memo-flow/bin/memo-hooks\",\"customized\":false}"
+}
+
 # ── per-hook metadata ─────────────────────────────────────────────────────────
 
 _hook_defaults() {
@@ -401,6 +428,13 @@ PYEOF
 }
 
 if [ "$(_has_hook_mutations)" = "yes" ]; then
+  # Refresh the wrapper on every non-check-only re-run so fixes to the
+  # wrapper template (env-var injection, etc.) flow through to existing
+  # installs. Not tracked by drift detection — this is the only update path.
+  if [ "$CHECK_ONLY" != true ]; then
+    _write_cli_wrapper
+  fi
+
   drifted_json=$(_get_drifted_hooks)
   drifted_count=$(python3 -c "import json,sys; print(len(json.loads(sys.argv[1])))" "$drifted_json")
 
@@ -539,23 +573,13 @@ for hook_src in "$HOOKS_SRC"/*.sh; do
 done
 
 # ── install memo-hooks CLI wrapper ────────────────────────────────────────────
-# memo-hooks SKILL.md documents `.claude/memo-flow/bin/memo-hooks` as the CLI.
-# Same pattern as the afk-cook wrapper installed by /memo-flow step 6:
-# stable path under .claude/memo-flow/bin/ that delegates to the real binary
-# under .claude/skills/, so updates to the skill flow through automatically.
+# Always rewritten on every non-check-only install run so that wrapper-level
+# fixes (env-var injection for symlinked installs, etc.) flow through to
+# existing installs the next time the user re-runs /memo-hooks. The wrapper
+# itself isn't drift-tracked (no source_checksum on its manifest entry), so
+# this is the only update path.
 
-bin_dir="$PROJECT_DIR/.claude/memo-flow/bin"
-mkdir -p "$bin_dir"
-wrapper="$bin_dir/memo-hooks"
-
-cat > "$wrapper" <<'EOF'
-#!/usr/bin/env bash
-exec "$(dirname "$0")/../../skills/memo-hooks/bin/memo-hooks" "$@"
-EOF
-chmod +x "$wrapper"
-
-manifest_append_if_absent "$MANIFEST" \
-  "{\"id\":\"memo-flow:memo-hooks-wrapper\",\"kind\":\"cli_wrapper\",\"target\":\".claude/memo-flow/bin/memo-hooks\",\"customized\":false}"
+_write_cli_wrapper
 
 # ── write config.json ─────────────────────────────────────────────────────────
 # All hooks ship disabled — users opt in via /memo-hooks or `memo-hooks --set`.
