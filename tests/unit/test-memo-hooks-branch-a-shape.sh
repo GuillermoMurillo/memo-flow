@@ -27,14 +27,10 @@ branch_a() {
 
 # ── narrative beat (A1) ──────────────────────────────────────────────────────
 
-# A1 must reference ADR-0003 by filename
-if branch_a | grep -q "0003"; then
-  ok "narrative beat references ADR-0003"
-else
-  fail "narrative beat missing ADR-0003 reference"
-fi
-
 # A1 must name the asymmetry: inert / gate skipped
+# (Prior version required a literal "0003" ADR reference; 9aa262b scrubbed
+# the ADR jargon from user-facing prose. The semantic check below is the
+# load-bearing one — the narrative must still explain why there's no gate.)
 if branch_a | grep -qi "inert\|gate skipped\|no.*gate\|skip.*gate"; then
   ok "narrative beat names the gate-skipped asymmetry"
 else
