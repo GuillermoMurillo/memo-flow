@@ -45,9 +45,9 @@ Hooks fire on Claude Code lifecycle events (UserPromptSubmit, PostToolUse, etc.)
 The base tier just installed infrastructure — all hooks are disabled by default.
 You opt in next.
 
-Per ADR-0003 (`docs/adr/0003-consent-gate-when-mutation-not-inert.md`), this
-flow skips a pre-flight gate because the writes are inert until you opt in.
-The opt-in interaction IS the consent moment.
+There's no separate "are you sure?" prompt before the install — the
+opt-in step where you pick which hooks to enable IS the consent moment.
+Nothing runs until you turn it on.
 ```
 
 This establishes the same onboarding tone as `/memo-flow`'s narrative beat and names the asymmetry: the gate is skipped because the mutations are inert.
