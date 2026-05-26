@@ -74,6 +74,8 @@ In your project's root:
 npx skills@latest add GuillermoMurillo/memo-flow -a claude-code
 ```
 
+> Don't combine this with `--all`. `--all` expands to `--skill '*' --agent '*' -y`, and the `-a '*'` overrides `-a claude-code`. On a fresh project (no `.claude/` yet) the skills CLI then falls back to `.agents/skills/`, which Claude Code doesn't read. If you want a non-interactive install, use `-a claude-code -s '*' -y` instead.
+
 Then in a Claude Code session:
 
 ```
