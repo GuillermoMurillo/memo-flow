@@ -75,7 +75,7 @@ One `AskUserQuestion` with 2 sub-questions rendered together. Do not split into 
 
 Options:
 
-- **`context-monitor`** — Watches your session's token count on every UserPromptSubmit. When you're nearing the context limit, it injects a warning so you can run `/handoff` before reasoning degrades. Default threshold: 99 000 tokens.
+- **`context-monitor`** — Watches your session's token count on every UserPromptSubmit. When you're nearing the context limit, it injects a warning so you can run `/handoff` before reasoning degrades. Default threshold: 130 000 tokens.
 - **`skill-leaderboard`** — Counts every skill invocation and writes totals to `~/.claude/memo-flow/skill-usage.json` after each Skill tool call. Run `memo-hooks leaderboard` to view.
 - **`handoff-clipboard`** — When the `/handoff` skill writes its temp file (`mktemp -t handoff-XXXXXX.md`), copies the absolute path to your system clipboard so you can paste it into the next session without scrolling for it. macOS + Linux only.
 - **`none — I'll enable later`** — leaves everything disabled; you can flip individual hooks via `/memo-hooks` Branch B any time.

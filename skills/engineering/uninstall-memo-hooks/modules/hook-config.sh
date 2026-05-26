@@ -28,7 +28,7 @@ set -euo pipefail
 _DEFAULTS='{
   "context-monitor": {
     "enabled": true,
-    "threshold": 99000,
+    "threshold": 130000,
     "mode": "auto"
   },
   "skill-leaderboard": {

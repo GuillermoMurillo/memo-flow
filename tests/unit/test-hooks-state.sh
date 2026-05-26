@@ -49,7 +49,7 @@ with open('$REGISTRY', 'w') as f:
 seed_config() {
   python3 -c "
 import json
-data = {'context-monitor': {'enabled': False, 'threshold': 99000, 'mode': 'notify'}}
+data = {'context-monitor': {'enabled': False, 'threshold': 130000, 'mode': 'notify'}}
 with open('$CONFIG', 'w') as f:
     json.dump(data, f)
     f.write('\n')

@@ -31,7 +31,7 @@ write_config() {
 import json, sys
 cfg, cm, sl = sys.argv[1], sys.argv[2] == "true", sys.argv[3] == "true"
 data = {
-  "context-monitor": {"enabled": cm, "threshold": 99000, "mode": "notify"},
+  "context-monitor": {"enabled": cm, "threshold": 130000, "mode": "notify"},
   "skill-leaderboard": {"enabled": sl, "output_file": "~/.claude/memo-flow/skill-usage.json"}
 }
 with open(cfg, "w") as f:

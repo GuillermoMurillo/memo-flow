@@ -192,7 +192,7 @@ print('yes' if '$id' in ids else 'no')
 _hook_defaults() {
   local hook="$1"
   case "$hook" in
-    context-monitor)   echo '{"enabled":false,"threshold":99000,"mode":"notify"}' ;;
+    context-monitor)   echo '{"enabled":false,"threshold":130000,"mode":"notify"}' ;;
     skill-leaderboard) echo '{"enabled":false,"output_file":"~/.claude/memo-flow/skill-usage.json"}' ;;
     handoff-clipboard) echo '{"enabled":false}' ;;
     *)                 echo '{"enabled":false}' ;;
