@@ -166,9 +166,7 @@ When `context-monitor` is disabled, also surface its settings as a reminder:
 
 Before presenting the management menu, detect hooks that shipped in the bundle but are not yet installed in this project.
 
-A hook is **pending** when any of these is true:
-- Its script (`<hook>.sh`) is in the bundle (`hooks/` under the skill folder) but absent from `.claude/memo-flow/hooks/`.
-- Its key is absent from `.claude/memo-flow/config.json`.
+A hook is **pending** when its script (`<hook>.sh`) is in the bundle (`hooks/` under the skill folder) but absent from `.claude/memo-flow/hooks/`. Missing `config.json` keys are repaired by a separate idempotent loop later in the same installer run, so the pending-hook check is intentionally narrow.
 
 Run the installer in non-interactive mode to collect pending hooks:
 
