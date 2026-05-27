@@ -48,7 +48,7 @@ SKILL_USAGE="${MEMO_FLOW_SKILL_USAGE:-$HOME/.claude/memo-flow/skill-usage.json}"
 # <project>/.claude/memo-flow/config.json — project root is three dirs up.
 _default_settings() {
   local proj
-  proj="$(cd "$(dirname "$CONFIG_FILE")/../../.." 2>/dev/null && pwd)"
+  proj="$(cd "$(dirname "$CONFIG_FILE")/../.." 2>/dev/null && pwd)"
   if [ -n "$proj" ]; then
     echo "$proj/.claude/settings.json"
     return
@@ -357,7 +357,7 @@ PYEOF
   # schema audit: surface any broken settings.json entries
   if [ -f "$STATE_SH" ] && [ -f "$SETTINGS_FILE" ]; then
     local audit_json project_path
-    project_path="$(cd "$(dirname "$CONFIG_FILE")/../../.." 2>/dev/null && pwd)"
+    project_path="$(cd "$(dirname "$CONFIG_FILE")/../.." 2>/dev/null && pwd)"
     audit_json="$(bash "$STATE_SH" audit "$SETTINGS_FILE" "${project_path:-$PWD}" 2>/dev/null || echo "[]")"
     local finding_count
     finding_count="$(python3 -c "import json,sys; print(len(json.loads(sys.argv[1])))" "$audit_json" 2>/dev/null || echo "0")"
