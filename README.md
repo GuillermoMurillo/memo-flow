@@ -1,12 +1,12 @@
 # memo-flow
 
-I learn new things best through NotebookLM, so here's the explainer I made for memo-flow.
-
-[![watch the memo-flow explanation](https://img.youtube.com/vi/gRIBlwAgLxM/maxresdefault.jpg)](https://youtu.be/gRIBlwAgLxM)
-
 You want to run multiple coding agents in parallel. You don't have time to ride along with each one.
 
 memo-flow is what I built so I can actually work like that. Claude Code skills, hooks, and a small AFK runner. Built on top of [Matt Pocock's skills](https://github.com/mattpocock/skills) with the originals I needed for cross-project work.
+
+I learn new things best through NotebookLM, so here's the explainer I made for memo-flow.
+
+[![watch the memo-flow explanation](https://img.youtube.com/vi/gRIBlwAgLxM/maxresdefault.jpg)](https://youtu.be/gRIBlwAgLxM)
 
 ## Install
 
@@ -87,7 +87,7 @@ Plus one global entry at `~/.claude/memo-flow/registry.json` that tracks which p
 
 ```
 plan      /grill-me   /prototype   /to-prd   /grill-with-docs   /to-issues
-build     afk-cook    /tdd
+build     /afk-cook   /tdd
 stuck     /diagnose   /zoom-out    /improve-codebase-architecture
 ship      /review     /review-tests   /ship
 maintain  /triage     /memo-flow   /memo-hooks   /handoff
@@ -95,11 +95,11 @@ maintain  /triage     /memo-flow   /memo-hooks   /handoff
 
 ## AFK runner
 
-`afk-cook` queues every `ready-for-agent` GitHub issue and runs one fresh `claude -p` per slice. Walk away, come back to shipped commits.
+`/afk-cook` queues every `ready-for-agent` GitHub issue and runs one fresh `claude -p` per slice. Walk away, come back to shipped commits.
 
 > For quick prototyping, not production. It runs locally with `bypassPermissions` and no container isolation. For anything with real blast radius, use [Sandcastle](https://github.com/mattpocock/sandcastle), Matt's container-isolated AFK runner.
 
-`afk-cook` requires GitHub Issues. If you pick the local-markdown tracker during install, the interactive skills still work; the runner stays idle.
+`/afk-cook` requires GitHub Issues. If you pick the local-markdown tracker during install, the interactive skills still work; the runner stays idle.
 
 ## Other agents
 
