@@ -1,5 +1,9 @@
 # memo-flow
 
+The below explanation video was created with NotebookLM, Nano Banana 3, and CapCut.
+
+[![watch the memo-flow explanation](https://img.youtube.com/vi/gRIBlwAgLxM/maxresdefault.jpg)](https://youtu.be/gRIBlwAgLxM)
+
 You want to run multiple coding agents in parallel. You don't want to babysit each one.
 
 The hard part is not the agent. It's keeping the agent's attention on the spec instead of letting the session accumulate, lose the plot, and start guessing.
