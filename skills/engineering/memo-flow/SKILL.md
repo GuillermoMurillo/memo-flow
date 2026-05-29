@@ -40,7 +40,7 @@ Scaffold the per-repo configuration that the engineering skills assume:
 
 - **Issue tracker** — where issues live (GitHub by default; local markdown is also supported out of the box)
 - **Triage labels** — the strings used for the five canonical triage roles
-- **Domain docs** — where `CONTEXT.md` and ADRs live, and the consumer rules for reading them
+- **Domain docs** — where the project's domain notes live, and the consumer rules for reading them
 
 This is a prompt-driven flow, not a deterministic script. Explore, present a narrative beat, ask 3 questions in one shot, confirm at a pre-flight gate, then write.
 
@@ -116,14 +116,14 @@ options:
 **Sub-question 3 — Domain doc layout**
 
 ```
-question: "`improve-codebase-architecture`, `diagnose`, and `tdd` read `CONTEXT.md` and
-`docs/adr/` for domain language and architectural decisions. They need to know whether
-there is one global context or per-module contexts so they look in the right place. You
-can change this later by editing `docs/agents/domain.md`."
+question: "Some skills read your project's domain notes (terminology, design decisions) to
+work with the right vocabulary. They need to know whether those notes live in one shared
+place at the repo root or split per module. You can change this later by editing
+`docs/agents/domain.md`."
 
 options:
-  - Single-context (default) — one `CONTEXT.md` + `docs/adr/` at the repo root
-  - Multi-context — `CONTEXT-MAP.md` at root pointing to per-context files (monorepo)
+  - Single (default) — one shared docs folder at the repo root
+  - Multi — separate docs per module (monorepo style)
 ```
 
 ### A4. Pre-flight gate

@@ -28,7 +28,7 @@ set -euo pipefail
 _DEFAULTS='{
   "context-monitor": {
     "enabled": true,
-    "threshold": 99000,
+    "threshold": 130000,
     "mode": "auto"
   },
   "skill-leaderboard": {
@@ -167,6 +167,59 @@ else:
 # merge: preserve existing keys, update with new_config
 data.setdefault(hook, {})
 data[hook].update(new_config)
+
+with open(tmpfile, "w") as f:
+    json.dump(data, f, indent=2)
+    f.write("\n")
+
+os.rename(tmpfile, config_file)
+PYEOF
+    rm -f "$tmpfile"
+    ;;
+
+  insert-if-absent)
+    file="${2:-}"
+    hook="${3:-}"
+    config_json="${4:-}"
+
+    if [ -z "$file" ] || [ -z "$hook" ] || [ -z "$config_json" ]; then
+      echo "usage: hook-config.sh insert-if-absent <file> <hook> <config-json>" >&2
+      exit 1
+    fi
+
+    dir="$(dirname "$file")"
+    mkdir -p "$dir"
+    tmpfile="$(mktemp "$dir/.hook-config-tmp-XXXXXX.json")"
+
+    python3 - "$file" "$tmpfile" "$hook" "$config_json" <<'PYEOF'
+import json, os, sys
+
+config_file, tmpfile, hook, config_json_str = sys.argv[1:]
+
+try:
+    new_config = json.loads(config_json_str)
+    if not isinstance(new_config, dict):
+        raise ValueError("config JSON must be an object")
+except (json.JSONDecodeError, ValueError) as e:
+    print(f"hook-config: {e}", file=sys.stderr)
+    sys.exit(1)
+
+if os.path.exists(config_file):
+    try:
+        data = json.load(open(config_file))
+        if not isinstance(data, dict):
+            data = {}
+    except Exception:
+        data = {}
+else:
+    data = {}
+
+# no-op if key already present — preserves existing user config
+if hook in data:
+    os.unlink(tmpfile)
+    sys.exit(0)
+
+data[hook] = new_config
 
 with open(tmpfile, "w") as f:
     json.dump(data, f, indent=2)

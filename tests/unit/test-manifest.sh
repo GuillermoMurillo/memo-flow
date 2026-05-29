@@ -113,6 +113,31 @@ v=$(bash "$MANIFEST_SH" get-version "$MF")
 
 bash "$MANIFEST_SH" get-version "$WORK/nonexistent.json" 2>/dev/null && fail "get-version should fail on missing file" || ok "get-version fails on missing file"
 
+# ── migrate-kind ──────────────────────────────────────────────────────────────
+
+echo ""
+echo "--- migrate-kind ---"
+
+# set up a mutation with kind file_written to migrate
+M3='{"id":"mut-3","kind":"file_written","target":".claude/memo-flow/config.json","customized":false}'
+bash "$MANIFEST_SH" append "$MF" "$M3"
+
+# migrate kind from file_written to user_config
+bash "$MANIFEST_SH" migrate-kind "$MF" "mut-3" "user_config"
+kind_after=$(python3 -c "import json; d=json.load(open('$MF')); m=[x for x in d['mutations'] if x['id']=='mut-3'][0]; print(m['kind'])")
+[[ "$kind_after" == "user_config" ]] && ok "migrate-kind updates kind" || fail "migrate-kind failed" "$kind_after"
+
+# idempotent: already the target kind
+bash "$MANIFEST_SH" migrate-kind "$MF" "mut-3" "user_config"
+kind_idem=$(python3 -c "import json; d=json.load(open('$MF')); m=[x for x in d['mutations'] if x['id']=='mut-3'][0]; print(m['kind'])")
+[[ "$kind_idem" == "user_config" ]] && ok "migrate-kind idempotent on already-migrated" || fail "migrate-kind idempotent failed" "$kind_idem"
+
+# no-op on unknown id
+bash "$MANIFEST_SH" migrate-kind "$MF" "nonexistent" "user_config" && ok "migrate-kind no-op on unknown id" || fail "migrate-kind failed on unknown id"
+
+# missing file errors out
+bash "$MANIFEST_SH" migrate-kind "$WORK/nonexistent.json" "mut-3" "user_config" 2>/dev/null && fail "migrate-kind should fail on missing file" || ok "migrate-kind fails on missing file"
+
 # ── summary ───────────────────────────────────────────────────────────────────
 
 echo ""

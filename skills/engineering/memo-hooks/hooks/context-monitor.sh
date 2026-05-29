@@ -39,7 +39,7 @@ import json, os, sys
 config_file = sys.argv[1]
 defaults = {
     "enabled": True,
-    "threshold": 99000,
+    "threshold": 130000,
     "mode": "notify",
     "handoff_dir": None,
 }
@@ -71,7 +71,7 @@ if [ "$enabled" = "False" ]; then
   exit 0
 fi
 
-threshold=$(python3 -c "import json,sys; print(json.loads(sys.argv[1]).get('threshold', 99000))" "$config_json")
+threshold=$(python3 -c "import json,sys; print(json.loads(sys.argv[1]).get('threshold', 130000))" "$config_json")
 mode=$(python3 -c "import json,sys; print(json.loads(sys.argv[1]).get('mode', 'notify'))" "$config_json")
 handoff_dir=$(python3 -c "
 import json, sys, os

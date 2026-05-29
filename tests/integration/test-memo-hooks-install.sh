@@ -175,6 +175,40 @@ print(count)
 ")
 [[ "$hook_mutations" -ge 2 ]] && ok "hook_script mutations recorded in manifest ($hook_mutations)" || fail "expected >=2 hook_script mutations, got $hook_mutations"
 
+config_kind=$(python3 -c "
+import json
+d = json.load(open('$MANIFEST'))
+m = next((x for x in d.get('mutations', []) if x.get('id') == 'memo-flow:hook-config'), None)
+print(m['kind'] if m else '(missing)')
+")
+[[ "$config_kind" == "user_config" ]] && ok "config.json manifest entry has kind=user_config" || fail "config.json manifest kind wrong: got '$config_kind', want 'user_config'"
+
+echo ""
+echo "--- migration: file_written → user_config ---"
+# Simulate a pre-existing manifest that has config.json as file_written (old installs).
+MOLD="$WORK/manifest-old.json"
+bash "$REPO_ROOT/_shared-modules/manifest.sh" init "$MOLD" "test"
+bash "$REPO_ROOT/_shared-modules/manifest.sh" append "$MOLD" \
+  '{"id":"memo-flow:hook-config","kind":"file_written","target":".claude/memo-flow/config.json","customized":false}'
+# Copy it into a fresh project to simulate an existing consumer.
+PROJECT2="$WORK/project2"
+mkdir -p "$PROJECT2/.claude/memo-flow"
+cp "$MOLD" "$PROJECT2/.claude/memo-flow/manifest.json"
+REGISTRY2="$WORK/registry2.json"
+bash "$ENTRY_SH" \
+  --project-dir "$PROJECT2" \
+  --registry    "$REGISTRY2" \
+  --scope       project \
+  --non-interactive \
+  2>/dev/null
+migrated_kind=$(python3 -c "
+import json
+d = json.load(open('$PROJECT2/.claude/memo-flow/manifest.json'))
+m = next((x for x in d.get('mutations', []) if x.get('id') == 'memo-flow:hook-config'), None)
+print(m['kind'] if m else '(missing)')
+")
+[[ "$migrated_kind" == "user_config" ]] && ok "existing file_written entry migrated to user_config on re-run" || fail "migration failed: got '$migrated_kind', want 'user_config'"
+
 echo ""
 echo "--- wrapper --set updates the real config ---"
 # Stage the memo-hooks skill into the project so the wrapper can

@@ -45,9 +45,9 @@ Hooks fire on Claude Code lifecycle events (UserPromptSubmit, PostToolUse, etc.)
 The base tier just installed infrastructure — all hooks are disabled by default.
 You opt in next.
 
-Per ADR-0003 (`docs/adr/0003-consent-gate-when-mutation-not-inert.md`), this
-flow skips a pre-flight gate because the writes are inert until you opt in.
-The opt-in interaction IS the consent moment.
+There's no separate "are you sure?" prompt before the install — the
+opt-in step where you pick which hooks to enable IS the consent moment.
+Nothing runs until you turn it on.
 ```
 
 This establishes the same onboarding tone as `/memo-flow`'s narrative beat and names the asymmetry: the gate is skipped because the mutations are inert.
@@ -75,7 +75,7 @@ One `AskUserQuestion` with 2 sub-questions rendered together. Do not split into 
 
 Options:
 
-- **`context-monitor`** — Watches your session's token count on every UserPromptSubmit. When you're nearing the context limit, it injects a warning so you can run `/handoff` before reasoning degrades. Default threshold: 99 000 tokens.
+- **`context-monitor`** — Watches your session's token count on every UserPromptSubmit. When you're nearing the context limit, it injects a warning so you can run `/handoff` before reasoning degrades. Default threshold: 130 000 tokens.
 - **`skill-leaderboard`** — Counts every skill invocation and writes totals to `~/.claude/memo-flow/skill-usage.json` after each Skill tool call. Run `memo-hooks leaderboard` to view.
 - **`handoff-clipboard`** — When the `/handoff` skill writes its temp file (`mktemp -t handoff-XXXXXX.md`), copies the absolute path to your system clipboard so you can paste it into the next session without scrolling for it. macOS + Linux only.
 - **`none — I'll enable later`** — leaves everything disabled; you can flip individual hooks via `/memo-hooks` Branch B any time.
@@ -161,6 +161,36 @@ Rules:
 
 When `context-monitor` is disabled, also surface its settings as a reminder:
 `context-monitor: disabled — would warn at <N> tokens in <mode> mode if enabled`
+
+### B1.5. Check for pending hooks (bundle-vs-installed diff)
+
+Before presenting the management menu, detect hooks that shipped in the bundle but are not yet installed in this project.
+
+A hook is **pending** when its script (`<hook>.sh`) is in the bundle (`hooks/` under the skill folder) but absent from `.claude/memo-flow/hooks/`. Missing `config.json` keys are repaired by a separate idempotent loop later in the same installer run, so the pending-hook check is intentionally narrow.
+
+Run the installer in non-interactive mode to collect pending hooks:
+
+```bash
+bash .claude/skills/memo-hooks/install.sh \
+  --project-dir "$(pwd)" \
+  --non-interactive \
+  2>/dev/null
+```
+
+The installer's `_get_missing_hooks` logic detects bundle-vs-hooks-dir gaps and installs them automatically (copies script, inserts config key with `enabled: false`, adds settings entry). After the installer exits, re-run `status` to get a fresh view.
+
+> **This check is transparent to the user when there are no pending hooks.** Only surface the install action when the installer actually copied something new (i.e., check if any hooks were mentioned in its output as "installed new hook: ...").
+
+When the installer reports one or more newly installed hooks, emit a brief notice before the B2 menu:
+
+```
+New hook(s) installed from the latest bundle:
+  • handoff-clipboard — (disabled by default; enable below if you want it)
+```
+
+Then continue to B2 as normal. Do **not** auto-enable newly installed hooks — the user must opt in.
+
+The `state.sh detect` output is unchanged by this step; no new state is emitted.
 
 ### B2. Offer actions via AskUserQuestion
 

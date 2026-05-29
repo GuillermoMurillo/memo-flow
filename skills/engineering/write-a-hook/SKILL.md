@@ -47,7 +47,7 @@ Ask the author each question in order. Do not skip any. Do not write files until
 - Read-write: reads and atomically updates a state file (must use flock or temp-and-rename)
 
 **Default config** — collect the hook-specific config keys (besides `enabled`), their types, and default values:
-- Example: `threshold: number = 99000`, `mode: string = "auto"`
+- Example: `threshold: number = 130000`, `mode: string = "auto"`
 
 ### 2. Consistency check
 
@@ -211,7 +211,7 @@ Use the existing format — kebab-case name in backticks, em-dash, prose descrip
 - **`<name>`** — <one-line user-facing description of what the hook does and when it fires>. <Optional: default behavior or threshold note>.
 ```
 
-Example (existing): `- **`context-monitor`** — Watches your session's token count on every UserPromptSubmit. When you're nearing the context limit, it injects a warning so you can run /handoff before reasoning degrades. Default threshold: 99 000 tokens.`
+Example (existing): `- **`context-monitor`** — Watches your session's token count on every UserPromptSubmit. When you're nearing the context limit, it injects a warning so you can run /handoff before reasoning degrades. Default threshold: 130 000 tokens.`
 
 > Do **not** invent a "What gets installed" section — none exists. The opt-in list is the canonical surface where new hooks become discoverable to consumers.
 

@@ -36,6 +36,7 @@ SKILL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 MANIFEST_SH="$SKILL_DIR/modules/manifest.sh"
 REGISTRY_SH="$SKILL_DIR/modules/user-registry.sh"
 SETTINGS_SH="$SKILL_DIR/modules/settings-mutator.sh"
+HOOK_CONFIG_SH="$SKILL_DIR/modules/hook-config.sh"
 
 # ── arg parsing ───────────────────────────────────────────────────────────────
 
@@ -102,6 +103,14 @@ if [ "$SCOPE" = "project" ]; then
 else
   OTHER_SCOPE_SETTINGS="$PROJECT_DIR/.claude/settings.json"
 fi
+
+settings_rel=".claude/settings.json"
+if [ "$SCOPE" = "user" ]; then
+  settings_rel="~/.claude/settings.json"
+fi
+
+config_json="$PROJECT_DIR/.claude/memo-flow/config.json"
+hooks_dir="$PROJECT_DIR/.claude/memo-flow/hooks"
 
 # ── cross-scope double-install detection ──────────────────────────────────────
 
@@ -176,6 +185,80 @@ print('yes' if '$id' in ids else 'no')
   if [ "$exists" = "no" ]; then
     "$MANIFEST_SH" append "$file" "$mutation_json"
   fi
+}
+
+# ── CLI wrapper writer ────────────────────────────────────────────────────────
+# Generates <project>/.claude/memo-flow/bin/memo-hooks. The wrapper resolves
+# the project root from BASH_SOURCE (its own real-file location in the
+# project) and exports MEMO_FLOW_CONFIG / MEMO_FLOW_SETTINGS before exec'ing
+# the underlying CLI — otherwise the CLI's $SCRIPT_DIR ancestry walk
+# resolves through the .claude/skills symlink and lands in the source repo
+# under `npx skills add -a claude-code`.
+
+_write_cli_wrapper() {
+  local bin_dir="$PROJECT_DIR/.claude/memo-flow/bin"
+  mkdir -p "$bin_dir"
+  local wrapper="$bin_dir/memo-hooks"
+
+  cat > "$wrapper" <<'WRAPPER_EOF'
+#!/usr/bin/env bash
+bin_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+project_root="$(cd "$bin_dir/../../.." && pwd)"
+export MEMO_FLOW_CONFIG="${MEMO_FLOW_CONFIG:-$project_root/.claude/memo-flow/config.json}"
+export MEMO_FLOW_SETTINGS="${MEMO_FLOW_SETTINGS:-$project_root/.claude/settings.json}"
+exec "$bin_dir/../../skills/memo-hooks/bin/memo-hooks" "$@"
+WRAPPER_EOF
+  chmod +x "$wrapper"
+
+  manifest_append_if_absent "$MANIFEST" \
+    "{\"id\":\"memo-flow:memo-hooks-wrapper\",\"kind\":\"cli_wrapper\",\"target\":\".claude/memo-flow/bin/memo-hooks\",\"customized\":false}"
+}
+
+# ── per-hook metadata ─────────────────────────────────────────────────────────
+
+_hook_defaults() {
+  local hook="$1"
+  case "$hook" in
+    context-monitor)   echo '{"enabled":false,"threshold":130000,"mode":"notify"}' ;;
+    skill-leaderboard) echo '{"enabled":false,"output_file":"~/.claude/memo-flow/skill-usage.json"}' ;;
+    handoff-clipboard) echo '{"enabled":false}' ;;
+    *)                 echo '{"enabled":false}' ;;
+  esac
+}
+
+_hook_event() {
+  local hook="$1"
+  case "$hook" in
+    context-monitor)   echo "UserPromptSubmit" ;;
+    skill-leaderboard) echo "PostToolUse" ;;
+    handoff-clipboard) echo "PostToolUse" ;;
+    *)                 echo "PostToolUse" ;;
+  esac
+}
+
+# Returns JSON array of hook filenames (*.sh) present in the bundle but
+# absent from the installed hooks directory.
+_get_missing_hooks() {
+  local installed_dir="$1"
+  python3 -c "
+import json, os
+
+hooks_src = '$HOOKS_SRC'
+installed_dir = '$installed_dir'
+
+bundle = set()
+if os.path.isdir(hooks_src):
+    for f in os.listdir(hooks_src):
+        if f.endswith('.sh'):
+            bundle.add(f)
+
+missing = []
+for hook_file in sorted(bundle):
+    if not os.path.isfile(os.path.join(installed_dir, hook_file)):
+        missing.append(hook_file)
+
+print(json.dumps(missing))
+" 2>/dev/null || echo "[]"
 }
 
 # ── re-run detection + drift check ───────────────────────────────────────────
@@ -345,13 +428,23 @@ PYEOF
 }
 
 if [ "$(_has_hook_mutations)" = "yes" ]; then
+  # Refresh the wrapper on every non-check-only re-run so fixes to the
+  # wrapper template (env-var injection, etc.) flow through to existing
+  # installs. Not tracked by drift detection — this is the only update path.
+  if [ "$CHECK_ONLY" != true ]; then
+    _write_cli_wrapper
+  fi
+
   drifted_json=$(_get_drifted_hooks)
   drifted_count=$(python3 -c "import json,sys; print(len(json.loads(sys.argv[1])))" "$drifted_json")
 
   broken_json=$(_get_broken_settings_entries)
   broken_count=$(python3 -c "import json,sys; print(len(json.loads(sys.argv[1])))" "$broken_json")
 
-  if [ "$drifted_count" -eq 0 ] && [ "$broken_count" -eq 0 ]; then
+  missing_json=$(_get_missing_hooks "$hooks_dir")
+  missing_count=$(python3 -c "import json,sys; print(len(json.loads(sys.argv[1])))" "$missing_json")
+
+  if [ "$drifted_count" -eq 0 ] && [ "$broken_count" -eq 0 ] && [ "$missing_count" -eq 0 ]; then
     echo "install-memo-hooks: all hooks up to date"
     exit 0
   fi
@@ -363,7 +456,41 @@ if [ "$(_has_hook_mutations)" = "yes" ]; then
     if [ "$drifted_count" -gt 0 ]; then
       echo "install-memo-hooks: $drifted_count hook(s) have updates pending — run /install-memo-hooks to review"
     fi
+    if [ "$missing_count" -gt 0 ]; then
+      echo "install-memo-hooks: $missing_count new hook(s) available — run /install-memo-hooks to add"
+    fi
     exit 0
+  fi
+
+  # install missing hooks (new hooks added to bundle since initial install)
+  if [ "$missing_count" -gt 0 ]; then
+    mkdir -p "$hooks_dir"
+    for i in $(python3 -c "import sys; print(' '.join(str(x) for x in range($missing_count)))"); do
+      hook_file=$(python3 -c "import json,sys; print(json.loads(sys.argv[1])[$i])" "$missing_json")
+      hook_stem="${hook_file%.sh}"
+      hook_src="$HOOKS_SRC/$hook_file"
+      hook_dest="$hooks_dir/$hook_file"
+
+      cp "$hook_src" "$hook_dest"
+      chmod +x "$hook_dest"
+
+      checksum=$(sha256_file "$hook_src")
+      manifest_append_if_absent "$MANIFEST" \
+        "{\"id\":\"memo-flow:hook-${hook_stem}\",\"kind\":\"hook_script\",\"target\":\".claude/memo-flow/hooks/${hook_file}\",\"source_checksum\":\"${checksum}\",\"customized\":false}"
+
+      defaults=$(_hook_defaults "$hook_stem")
+      "$HOOK_CONFIG_SH" insert-if-absent "$config_json" "$hook_stem" "$defaults"
+
+      event=$(_hook_event "$hook_stem")
+      hook_id="memo-flow:${hook_stem}"
+      hook_entry="{\"id\":\"${hook_id}\",\"command\":\".claude/memo-flow/hooks/${hook_file}\",\"type\":\"command\"}"
+      "$SETTINGS_SH" insert "$SETTINGS_JSON" "$event" "" "$hook_entry"
+
+      manifest_append_if_absent "$MANIFEST" \
+        "{\"id\":\"memo-flow:settings-${hook_stem}\",\"kind\":\"settings_entry\",\"target\":\"${settings_rel}\",\"hook_id\":\"${hook_id}\",\"scope\":\"${SCOPE}\",\"customized\":false}"
+
+      echo "install-memo-hooks: installed new hook: $hook_stem"
+    done
   fi
 
   if [ "$NON_INTERACTIVE" = true ]; then
@@ -446,55 +573,46 @@ for hook_src in "$HOOKS_SRC"/*.sh; do
 done
 
 # ── install memo-hooks CLI wrapper ────────────────────────────────────────────
-# memo-hooks SKILL.md documents `.claude/memo-flow/bin/memo-hooks` as the CLI.
-# Same pattern as the afk-cook wrapper installed by /memo-flow step 6:
-# stable path under .claude/memo-flow/bin/ that delegates to the real binary
-# under .claude/skills/, so updates to the skill flow through automatically.
+# Always rewritten on every non-check-only install run so that wrapper-level
+# fixes (env-var injection for symlinked installs, etc.) flow through to
+# existing installs the next time the user re-runs /memo-hooks. The wrapper
+# itself isn't drift-tracked (no source_checksum on its manifest entry), so
+# this is the only update path.
 
-bin_dir="$PROJECT_DIR/.claude/memo-flow/bin"
-mkdir -p "$bin_dir"
-wrapper="$bin_dir/memo-hooks"
-
-cat > "$wrapper" <<'EOF'
-#!/usr/bin/env bash
-exec "$(dirname "$0")/../../skills/memo-hooks/bin/memo-hooks" "$@"
-EOF
-chmod +x "$wrapper"
-
-manifest_append_if_absent "$MANIFEST" \
-  "{\"id\":\"memo-flow:memo-hooks-wrapper\",\"kind\":\"cli_wrapper\",\"target\":\".claude/memo-flow/bin/memo-hooks\",\"customized\":false}"
+_write_cli_wrapper
 
 # ── write config.json ─────────────────────────────────────────────────────────
+# All hooks ship disabled — users opt in via /memo-hooks or `memo-hooks --set`.
+# insert-if-absent is idempotent: re-runs preserve existing user config and only
+# fill in keys for hooks that are new in the bundle since the initial install.
 
-config_json="$PROJECT_DIR/.claude/memo-flow/config.json"
-
+FRESH_CONFIG=0
 if [ ! -f "$config_json" ]; then
-  # All hooks ship disabled on a fresh install — users opt in per hook via
-  # /memo-hooks (Claude session) or `memo-hooks --set <hook>=true` (terminal).
-  # Existing installs are untouched: this block only fires when config.json
-  # is missing.
-  cat > "$config_json" <<'EOF'
-{
-  "context-monitor": {
-    "enabled": false,
-    "threshold": 99000,
-    "mode": "notify"
-  },
-  "skill-leaderboard": {
-    "enabled": false,
-    "output_file": "~/.claude/memo-flow/skill-usage.json"
-  },
-  "handoff-clipboard": {
-    "enabled": false
-  }
-}
-EOF
-
-  manifest_append_if_absent "$MANIFEST" \
-    "{\"id\":\"memo-flow:hook-config\",\"kind\":\"file_written\",\"target\":\".claude/memo-flow/config.json\",\"customized\":false}"
-
   FRESH_CONFIG=1
 fi
+
+for hook_src in "$HOOKS_SRC"/*.sh; do
+  [ -f "$hook_src" ] || continue
+  hook_stem="$(basename "${hook_src%.sh}")"
+  defaults=$(_hook_defaults "$hook_stem")
+  "$HOOK_CONFIG_SH" insert-if-absent "$config_json" "$hook_stem" "$defaults"
+done
+
+if [ "$FRESH_CONFIG" = "1" ]; then
+  manifest_append_if_absent "$MANIFEST" \
+    "{\"id\":\"memo-flow:hook-config\",\"kind\":\"user_config\",\"target\":\".claude/memo-flow/config.json\",\"customized\":false}"
+fi
+
+# Migration: existing installs may have registered config.json as file_written,
+# which causes the drift detector to report it as drifted-edited on every run.
+# Rewrite to user_config so it is no longer tracked for drift.
+#
+# Scope audit (issue #65): config.json is the only user-mutable defaults file
+# emitted by the memo-flow tier today. The base tier emits doc_block (fenced
+# region in CLAUDE.md / AGENTS.md) and seeds docs/agents/*.md from templates
+# without adding them to the manifest. Neither passes through the file_written
+# drift loop, so no further migration is needed.
+"$MANIFEST_SH" migrate-kind "$MANIFEST" "memo-flow:hook-config" "user_config"
 
 # ── add gitignore entries ─────────────────────────────────────────────────────
 
@@ -525,11 +643,6 @@ handoff_clipboard_hook="{\"id\":\"memo-flow:handoff-clipboard\",\"command\":\"${
 
 "$SETTINGS_SH" insert "$SETTINGS_JSON" "PostToolUse" "" "$handoff_clipboard_hook"
 
-settings_rel=".claude/settings.json"
-if [ "$SCOPE" = "user" ]; then
-  settings_rel="~/.claude/settings.json"
-fi
-
 manifest_append_if_absent "$MANIFEST" \
   "{\"id\":\"memo-flow:settings-skill-leaderboard\",\"kind\":\"settings_entry\",\"target\":\"${settings_rel}\",\"hook_id\":\"memo-flow:skill-leaderboard\",\"scope\":\"${SCOPE}\",\"customized\":false}"
 
@@ -554,7 +667,7 @@ fi
 
 echo "install-memo-hooks: done — hooks installed at $SCOPE scope in $PROJECT_DIR"
 
-if [ "${FRESH_CONFIG:-0}" = "1" ]; then
+if [ "$FRESH_CONFIG" = "1" ]; then
   echo "install-memo-hooks: all hooks are DISABLED by default — opt in per hook:"
   echo "  • from a Claude session: run /memo-hooks"
   echo "  • from a terminal:       .claude/memo-flow/bin/memo-hooks --set <hook>=true"

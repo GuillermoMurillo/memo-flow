@@ -31,7 +31,7 @@ write_config() {
 import json, sys
 cfg, cm, sl = sys.argv[1], sys.argv[2] == "true", sys.argv[3] == "true"
 data = {
-  "context-monitor": {"enabled": cm, "threshold": 99000, "mode": "notify"},
+  "context-monitor": {"enabled": cm, "threshold": 130000, "mode": "notify"},
   "skill-leaderboard": {"enabled": sl, "output_file": "~/.claude/memo-flow/skill-usage.json"}
 }
 with open(cfg, "w") as f:
@@ -227,6 +227,51 @@ print(n)
 [ "$remaining_stdin" -eq 0 ] \
   && ok "--repair-settings fixes type=stdin entries" \
   || fail "--repair-settings did not fix all entries" "remaining: $remaining_stdin"
+
+# ── audit: command-path resolution uses the right project root ────────────────
+# Regression: previously dirname($CONFIG_FILE)/../../.. overshot by one level,
+# producing phantom "command not found" findings even when hook scripts exist
+# at the path settings.json records. Surfaced when running `memo-hooks status`
+# after a symlinked install.
+
+echo ""
+echo "--- audit: command path resolution ---"
+
+PROJ="$WORK/proj"
+mkdir -p "$PROJ/.claude/memo-flow/hooks"
+touch "$PROJ/.claude/memo-flow/hooks/context-monitor.sh"
+chmod +x "$PROJ/.claude/memo-flow/hooks/context-monitor.sh"
+
+PROJ_CFG="$PROJ/.claude/memo-flow/config.json"
+PROJ_SETTINGS="$PROJ/.claude/settings.json"
+
+python3 - "$PROJ_CFG" <<'PYEOF'
+import json, sys
+path = sys.argv[1]
+data = {
+  "context-monitor": {"enabled": True, "threshold": 130000, "mode": "notify"},
+  "skill-leaderboard": {"enabled": False, "output_file": "~/.claude/memo-flow/skill-usage.json"}
+}
+with open(path, "w") as f:
+    json.dump(data, f, indent=2)
+    f.write("\n")
+PYEOF
+
+python3 - "$PROJ_SETTINGS" <<'PYEOF'
+import json, sys
+path = sys.argv[1]
+data = {"hooks": {"UserPromptSubmit": [{"matcher": "", "hooks": [
+    {"id": "memo-flow:context-monitor", "type": "command", "command": ".claude/memo-flow/hooks/context-monitor.sh"}
+]}]}}
+with open(path, "w") as f:
+    json.dump(data, f, indent=2)
+    f.write("\n")
+PYEOF
+
+out=$(MEMO_FLOW_CONFIG="$PROJ_CFG" MEMO_FLOW_SETTINGS="$PROJ_SETTINGS" "$CLI" status 2>/dev/null)
+echo "$out" | grep -q "command not found" \
+  && fail "audit reports phantom command-not-found when hook script exists" "got: $out" \
+  || ok "audit resolves command paths against the right project root"
 
 # --repair-settings is a no-op when settings are clean
 python3 - "$SETTINGS" <<'PYEOF'

@@ -30,7 +30,7 @@ cat > "$CFG" <<'JSON'
 {
   "context-monitor": {
     "enabled": true,
-    "threshold": 99000,
+    "threshold": 130000,
     "mode": "notify"
   },
   "skill-leaderboard": {
