@@ -11,6 +11,7 @@ Modifications:
 - `diagnose` SKILL.md: added two mandatory checkpoints — end of Phase 1 (state the feedback loop before reproducing) and end of Phase 4 (state root cause + fix type before writing code). Diverges from upstream, where Phase 4→5 flows without a stop. Tracks the intent of upstream proposal mattpocock/skills#124 (open, unanswered).
 - `memo-flow` SKILL.md Branch A (install logic derived from `setup-matt-pocock-skills`): fresh install and repair now also write a `.worktreeinclude` in the consumer project (three `.claude/` paths, gitignore syntax, manifest-tracked as `gitignore_entry` mutations) so worktrees created by Claude Code keep the gitignored skills and hooks (issue #91). Not present upstream.
 - `handoff` SKILL.md: temp-file path changed from `mktemp -t handoff-XXXXXX.md` to a portable create-then-rename form (`mktemp "${TMPDIR:-/tmp}/handoff-XXXXXX"` + `mv` to add `.md`) because macOS mktemp does not expand X's followed by a suffix (issue #73).
+- `write-a-skill` SKILL.md: added an "AskUserQuestion Options" section documenting the label-vs-description convention (label: 1-5 word chip; description: 1-2 sentence explanation) (issue #72). Not present upstream.
 
 ---
 
