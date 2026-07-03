@@ -118,6 +118,47 @@ echo "$out" | grep -q "pruned 0 entries (0 kept)" \
   && ok "empty registry → summary correct" \
   || fail "empty registry summary" "got: '$out'"
 
+# ── get: worktree of a registered repo resolves to the main entry (#88) ──────
+
+echo ""
+echo "--- get: git worktrees ---"
+
+GIT_REPO="$WORK/mainrepo"
+GIT_WT="$WORK/wt"
+git init -q "$GIT_REPO"
+git -C "$GIT_REPO" -c user.email=t@example.com -c user.name=t \
+  commit -q --allow-empty -m init
+git -C "$GIT_REPO" worktree add "$GIT_WT" >/dev/null 2>&1
+
+seed "[\"$GIT_REPO\"]"
+
+# get with the worktree path → returns the main repo's entry
+out="$(bash "$REGISTRY_SH" get "$REG" "$GIT_WT" 2>/dev/null)"
+echo "$out" | python3 -c "
+import json, sys
+entry = json.load(sys.stdin)
+assert entry['path'] == '$GIT_REPO', entry['path']
+" 2>/dev/null \
+  && ok "get from worktree → main repo entry" \
+  || fail "get from worktree" "got: '$out'"
+
+# get with the main repo path → unchanged
+out="$(bash "$REGISTRY_SH" get "$REG" "$GIT_REPO" 2>/dev/null)"
+echo "$out" | python3 -c "
+import json, sys
+entry = json.load(sys.stdin)
+assert entry['path'] == '$GIT_REPO', entry['path']
+" 2>/dev/null \
+  && ok "get from main repo → unchanged" \
+  || fail "get from main repo" "got: '$out'"
+
+# get with an unregistered non-git path → still empty
+mkdir -p "$WORK/plain"
+out="$(bash "$REGISTRY_SH" get "$REG" "$WORK/plain" 2>/dev/null)"
+[[ -z "$out" ]] \
+  && ok "get unregistered non-git path → empty" \
+  || fail "get unregistered non-git path" "got: '$out'"
+
 # ── prune-missing: atomic write (file still valid JSON after prune) ───────────
 
 echo ""

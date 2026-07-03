@@ -187,6 +187,83 @@ result="$(bash "$STATE_SH" detect "$CONFIG" "$REGISTRY" "$OTHER_PATH" 2>/dev/nul
   && ok "works with arbitrary project path" \
   || fail "arbitrary project path" "got '$result'"
 
+# ── git worktrees: detection keys on the main repo root (#88) ────────────────
+
+echo ""
+echo "--- git worktrees ---"
+
+norm() { python3 -c "import os,sys; print(os.path.realpath(sys.argv[1]))" "$1"; }
+
+GIT_REPO="$WORK/mainrepo"
+GIT_WT="$WORK/wt"
+git init -q "$GIT_REPO"
+git -C "$GIT_REPO" -c user.email=t@example.com -c user.name=t \
+  commit -q --allow-empty -m init
+git -C "$GIT_REPO" worktree add "$GIT_WT" >/dev/null 2>&1
+
+# register the MAIN repo path with the hooks tier
+python3 -c "
+import json
+data = {'projects': [{'path': '$GIT_REPO', 'tiers': ['base', 'hooks'], 'last_updated': '2026-01-01T00:00:00Z'}]}
+with open('$REGISTRY', 'w') as f:
+    json.dump(data, f)
+    f.write('\n')
+"
+seed_config
+
+# detect from inside the linked worktree → healthy, not broken_no_registry
+result="$(bash "$STATE_SH" detect "$CONFIG" "$REGISTRY" "$GIT_WT" 2>/dev/null)"
+[[ "$result" == "healthy" ]] \
+  && ok "worktree of registered repo → healthy" \
+  || fail "worktree of registered repo" "got '$result'"
+
+# detect from the main repo → still healthy (no regression)
+result="$(bash "$STATE_SH" detect "$CONFIG" "$REGISTRY" "$GIT_REPO" 2>/dev/null)"
+[[ "$result" == "healthy" ]] \
+  && ok "main repo still healthy" \
+  || fail "main repo" "got '$result'"
+
+# registry entry stored realpath-normalized, detect via symlinked tmp path → healthy
+python3 -c "
+import json, os
+data = {'projects': [{'path': os.path.realpath('$GIT_REPO'), 'tiers': ['base', 'hooks'], 'last_updated': '2026-01-01T00:00:00Z'}]}
+with open('$REGISTRY', 'w') as f:
+    json.dump(data, f)
+    f.write('\n')
+"
+result="$(bash "$STATE_SH" detect "$CONFIG" "$REGISTRY" "$GIT_WT" 2>/dev/null)"
+[[ "$result" == "healthy" ]] \
+  && ok "realpath-normalized registry entry matches worktree" \
+  || fail "realpath-normalized entry" "got '$result'"
+
+# non-git dir registered literally → unchanged behavior
+NONGIT="$WORK/plain-project"
+mkdir -p "$NONGIT"
+python3 -c "
+import json
+data = {'projects': [{'path': '$NONGIT', 'tiers': ['base', 'hooks'], 'last_updated': '2026-01-01T00:00:00Z'}]}
+with open('$REGISTRY', 'w') as f:
+    json.dump(data, f)
+    f.write('\n')
+"
+result="$(bash "$STATE_SH" detect "$CONFIG" "$REGISTRY" "$NONGIT" 2>/dev/null)"
+[[ "$result" == "healthy" ]] \
+  && ok "non-git dir → unchanged (healthy)" \
+  || fail "non-git dir" "got '$result'"
+
+# non-git dir NOT registered → still broken_no_registry
+python3 -c "
+import json
+data = {'projects': []}
+with open('$REGISTRY', 'w') as f:
+    json.dump(data, f)
+    f.write('\n')
+"
+result="$(bash "$STATE_SH" detect "$CONFIG" "$REGISTRY" "$NONGIT" 2>/dev/null)"
+[[ "$result" == "broken_no_registry" ]] \
+  && ok "unregistered non-git dir → still broken_no_registry" \
+  || fail "unregistered non-git dir" "got '$result'"
+
 # ── audit: schema checks on settings.json ────────────────────────────────────
 
 echo ""

@@ -173,21 +173,47 @@ os.rename('$tmpfile', '$file')
       echo ""
       exit 0
     fi
+    # A linked git worktree shares its install with the main repo, but the
+    # registry keys on the main-repo path. Resolve through worktree-root.sh
+    # so lookups from inside a worktree find the registered project (#88).
+    MODULE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    main_root="$proj_path"
+    if [ -f "$MODULE_DIR/worktree-root.sh" ]; then
+      main_root="$(bash "$MODULE_DIR/worktree-root.sh" resolve "$proj_path" 2>/dev/null)" \
+        || main_root="$proj_path"
+      [ -n "$main_root" ] || main_root="$proj_path"
+    fi
     python3 -c "
-import json, sys
+import json, os, sys
+
+file, proj_path, main_root = sys.argv[1], sys.argv[2], sys.argv[3]
 
 try:
-    data = json.load(open('$file'))
+    data = json.load(open(file))
 except Exception as e:
     print(f'user-registry: invalid JSON: {e}', file=sys.stderr)
     sys.exit(1)
 
-matches = [p for p in data.get('projects', []) if p.get('path') == '$proj_path']
-if matches:
-    print(json.dumps(matches[0], indent=2))
-else:
-    print('')
-"
+def _norm(p):
+    try:
+        return os.path.realpath(p)
+    except Exception:
+        return p
+
+# literal project path wins over the resolved main root, so a registry that
+# (wrongly) holds a worktree-path entry still returns that exact entry
+candidates = [_norm(proj_path)]
+if _norm(main_root) not in candidates:
+    candidates.append(_norm(main_root))
+
+projects = data.get('projects', [])
+for cand in candidates:
+    matches = [p for p in projects if _norm(p.get('path', '')) == cand]
+    if matches:
+        print(json.dumps(matches[0], indent=2))
+        sys.exit(0)
+print('')
+" "$file" "$proj_path" "$main_root"
     ;;
 
   prune-missing)

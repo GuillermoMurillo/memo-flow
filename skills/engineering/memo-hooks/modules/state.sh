@@ -32,10 +32,30 @@ case "$cmd" in
       exit 1
     fi
 
-    python3 - "$config_file" "$registry_file" "$project_path" <<'PYEOF'
+    # A linked git worktree shares its install with the main repo, but the
+    # registry keys on the main-repo path, not the worktree path. Resolve the
+    # main worktree root so detection inside a worktree matches the registered
+    # project instead of falsely reporting broken_no_registry (issue #88).
+    MODULE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    main_root="$project_path"
+    if [ -f "$MODULE_DIR/worktree-root.sh" ]; then
+      main_root="$(bash "$MODULE_DIR/worktree-root.sh" resolve "$project_path" 2>/dev/null)" \
+        || main_root="$project_path"
+      [ -n "$main_root" ] || main_root="$project_path"
+    fi
+
+    python3 - "$config_file" "$registry_file" "$project_path" "$main_root" <<'PYEOF'
 import json, os, sys
 
-config_file, registry_file, project_path = sys.argv[1], sys.argv[2], sys.argv[3]
+config_file, registry_file, project_path, main_root = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
+
+def _norm(p):
+    try:
+        return os.path.realpath(p)
+    except Exception:
+        return p
+
+candidates = {_norm(project_path), _norm(main_root)}
 
 # check registry: does it list "hooks" tier for this project?
 registry_has_hooks = False
@@ -43,7 +63,7 @@ if os.path.isfile(registry_file):
     try:
         data = json.load(open(registry_file))
         for entry in data.get("projects", []):
-            if entry.get("path") == project_path:
+            if _norm(entry.get("path", "")) in candidates:
                 if "hooks" in entry.get("tiers", []):
                     registry_has_hooks = True
                 break

@@ -35,6 +35,7 @@ CONSUMER_PAIRS=(
   "bundle-inventory.sh:memo-flow"
   "hook-config.sh:uninstall-memo-hooks memo-hooks"
   "base-state.sh:memo-flow"
+  "worktree-root.sh:memo-flow memo-hooks uninstall-memo-flow uninstall-memo-hooks"
 )
 
 MODE="write"
