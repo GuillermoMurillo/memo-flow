@@ -311,7 +311,8 @@ entry_count=$(python3 -c "import json,sys; print(len(json.loads(sys.argv[1])))" 
 [[ "$entry_count" -eq 1 ]] \
   && ok "type=stdin → one finding" \
   || fail "type=stdin" "got $entry_count findings: $result"
-echo "$result" | python3 -c "import json,sys; f=json.load(sys.stdin); print(f[0]['entry'])" | grep -q "memo-flow:context-monitor" \
+finding_entry="$(python3 -c "import json,sys; f=json.load(sys.stdin); print(f[0]['entry'])" <<<"$result")"
+grep -q "memo-flow:context-monitor" <<<"$finding_entry" \
   && ok "finding names the offending entry" \
   || fail "finding entry wrong" "got $result"
 

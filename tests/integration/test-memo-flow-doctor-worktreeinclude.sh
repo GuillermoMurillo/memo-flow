@@ -45,7 +45,7 @@ seed_skills
 out="$(run_doctor)"
 rc=$?
 
-if echo "$out" | grep -q "\.worktreeinclude"; then
+if grep -q "\.worktreeinclude" <<<"$out"; then
   ok "warns about missing .worktreeinclude when skills are installed"
 else
   fail "no .worktreeinclude warning" "output was: $out"
@@ -62,7 +62,7 @@ fi
 printf '.claude/skills/\n.claude/memo-flow/\n.claude/settings.json\n' > "$WORK/proj/.worktreeinclude"
 out="$(run_doctor)"
 
-if echo "$out" | grep -q "\.worktreeinclude"; then
+if grep -q "\.worktreeinclude" <<<"$out"; then
   fail "warned even though .worktreeinclude exists" "output was: $out"
 else
   ok "silent when .worktreeinclude exists"
@@ -73,7 +73,7 @@ fi
 seed_project
 out="$(run_doctor)"
 
-if echo "$out" | grep -q "\.worktreeinclude"; then
+if grep -q "\.worktreeinclude" <<<"$out"; then
   fail "warned even though no skills are installed" "output was: $out"
 else
   ok "silent when no skills are installed"

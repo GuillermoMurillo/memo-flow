@@ -41,7 +41,10 @@ done
 echo ""
 echo "--- documented command yields handoff-<random>.md ---"
 
-cmd="$(grep -o '`[^`]*mktemp[^`]*`' "$HANDOFF_MD" | head -1 | tr -d '\140')"
+# capture grep's output before trimming: piping grep into head under pipefail
+# is flaky (head exits after one line, grep takes SIGPIPE → 141)
+mktemp_spans="$(grep -o '`[^`]*mktemp[^`]*`' "$HANDOFF_MD")"
+cmd="$(head -1 <<<"$mktemp_spans" | tr -d '\140')"
 if [ -z "$cmd" ]; then
   fail "no mktemp invocation found in handoff SKILL.md"
 else
@@ -50,7 +53,7 @@ else
   if [ -z "$path" ] || [ ! -f "$path" ]; then
     fail "documented command did not produce a file" "cmd: $cmd → '$path'"
   else
-    if echo "$base" | grep -qE '^handoff-[A-Za-z0-9]+\.md$' && [ "${base#*XXXXXX}" = "$base" ]; then
+    if grep -qE '^handoff-[A-Za-z0-9]+\.md$' <<<"$base" && [ "${base#*XXXXXX}" = "$base" ]; then
       ok "produced $base"
     else
       fail "bad temp file name: $base" "cmd: $cmd"

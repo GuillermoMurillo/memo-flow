@@ -31,7 +31,7 @@ for hook_file in "$HOOKS_DIR"/*.sh; do
     fail "$stem: event lookup failed (rc=$rc, out='$event')"
   elif [ "$event" = "Other" ]; then
     fail "$stem: mapped to catch-all 'Other'"
-  elif echo " $LIFECYCLE " | grep -qF " $event "; then
+  elif grep -qF " $event " <<<" $LIFECYCLE "; then
     ok "$stem → $event"
   else
     fail "$stem: '$event' is not a known lifecycle event"

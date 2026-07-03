@@ -28,7 +28,7 @@ for s in d.get('skills', []):
 
 _is_listed() {
   local rel="$1"   # e.g. ./skills/engineering/tdd
-  echo "$LISTED" | grep -qxF "$rel"
+  grep -qxF "$rel" <<<"$LISTED"
 }
 
 echo "--- plugin.json completeness ---"

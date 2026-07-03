@@ -45,7 +45,7 @@ out="$(bash "$REGISTRY_SH" prune-missing "$REG" 2>/dev/null)"
 [[ $? -eq 0 ]] \
   && ok "missing registry file → exit 0" \
   || fail "missing registry file → should exit 0"
-echo "$out" | grep -q "pruned 0 entries" \
+grep -q "pruned 0 entries" <<<"$out" \
   && ok "missing registry file → reports 0 pruned" \
   || fail "missing registry file output" "got: '$out'"
 
@@ -62,7 +62,7 @@ remaining="$(count_entries)"
 [[ "$remaining" -eq 1 ]] \
   && ok "all paths exist → entry kept" \
   || fail "all paths exist → entry removed unexpectedly"
-echo "$out" | grep -q "pruned 0 entries (1 kept)" \
+grep -q "pruned 0 entries (1 kept)" <<<"$out" \
   && ok "all paths exist → summary correct" \
   || fail "all paths exist summary" "got: '$out'"
 
@@ -77,7 +77,7 @@ remaining="$(count_entries)"
 [[ "$remaining" -eq 1 ]] \
   && ok "one stale entry pruned" \
   || fail "one stale entry" "expected 1 entry, got $remaining"
-echo "$out" | grep -q "pruned 1 entries (1 kept)" \
+grep -q "pruned 1 entries (1 kept)" <<<"$out" \
   && ok "one stale → summary correct" \
   || fail "one stale summary" "got: '$out'"
 
@@ -98,7 +98,7 @@ remaining="$(count_entries)"
 [[ "$remaining" -eq 0 ]] \
   && ok "all stale → registry empty" \
   || fail "all stale" "expected 0 entries, got $remaining"
-echo "$out" | grep -q "pruned 2 entries (0 kept)" \
+grep -q "pruned 2 entries (0 kept)" <<<"$out" \
   && ok "all stale → summary correct" \
   || fail "all stale summary" "got: '$out'"
 
@@ -114,7 +114,7 @@ with open('$REG', 'w') as f:
     f.write('\n')
 "
 out="$(bash "$REGISTRY_SH" prune-missing "$REG" 2>/dev/null)"
-echo "$out" | grep -q "pruned 0 entries (0 kept)" \
+grep -q "pruned 0 entries (0 kept)" <<<"$out" \
   && ok "empty registry → summary correct" \
   || fail "empty registry summary" "got: '$out'"
 

@@ -50,12 +50,12 @@ echo "--- no active hooks ---"
 
 write_config false false
 out="$(run_status)"
-echo "$out" | grep -q "no active hooks" \
+grep -q "no active hooks" <<<"$out" \
   && ok "all disabled: shows 'no active hooks'" \
   || fail "all disabled" "got: $out"
 
 # no event headers when nothing is active
-echo "$out" | grep -qE "^(UserPromptSubmit|PostToolUse)" \
+grep -qE "^(UserPromptSubmit|PostToolUse)" <<<"$out" \
   && fail "all disabled: should not print event headers" \
   || ok "all disabled: no event headers printed"
 
@@ -67,19 +67,19 @@ echo "--- only context-monitor enabled ---"
 write_config true false
 out="$(run_status)"
 
-echo "$out" | grep -q "UserPromptSubmit" \
+grep -q "UserPromptSubmit" <<<"$out" \
   && ok "UserPromptSubmit header appears" \
   || fail "UserPromptSubmit header missing" "got: $out"
 
-echo "$out" | grep -q "context-monitor" \
+grep -q "context-monitor" <<<"$out" \
   && ok "context-monitor appears under UserPromptSubmit" \
   || fail "context-monitor missing from output" "got: $out"
 
-echo "$out" | grep -q "PostToolUse" \
+grep -q "PostToolUse" <<<"$out" \
   && fail "PostToolUse should be hidden when skill-leaderboard is disabled" \
   || ok "PostToolUse header suppressed (no active hooks there)"
 
-echo "$out" | grep -q "skill-leaderboard" \
+grep -q "skill-leaderboard" <<<"$out" \
   && fail "disabled skill-leaderboard should not appear" \
   || ok "disabled skill-leaderboard not shown"
 
@@ -91,15 +91,15 @@ echo "--- only skill-leaderboard enabled ---"
 write_config false true
 out="$(run_status)"
 
-echo "$out" | grep -q "PostToolUse" \
+grep -q "PostToolUse" <<<"$out" \
   && ok "PostToolUse header appears" \
   || fail "PostToolUse header missing" "got: $out"
 
-echo "$out" | grep -q "skill-leaderboard" \
+grep -q "skill-leaderboard" <<<"$out" \
   && ok "skill-leaderboard appears under PostToolUse" \
   || fail "skill-leaderboard missing from output" "got: $out"
 
-echo "$out" | grep -q "UserPromptSubmit" \
+grep -q "UserPromptSubmit" <<<"$out" \
   && fail "UserPromptSubmit should be hidden when context-monitor is disabled" \
   || ok "UserPromptSubmit header suppressed"
 
@@ -111,8 +111,10 @@ echo "--- both enabled: lifecycle order ---"
 write_config true true
 out="$(run_status)"
 
-usp_line=$(echo "$out" | grep -n "UserPromptSubmit" | head -1 | cut -d: -f1)
-ptu_line=$(echo "$out" | grep -n "PostToolUse"      | head -1 | cut -d: -f1)
+# first-match line numbers via awk: piping grep -n into head under pipefail
+# is flaky (head exits after one line, grep takes SIGPIPE → 141)
+usp_line=$(awk '/UserPromptSubmit/{print NR; exit}' <<<"$out")
+ptu_line=$(awk '/PostToolUse/{print NR; exit}'      <<<"$out")
 
 if [ -n "$usp_line" ] && [ -n "$ptu_line" ] && [ "$usp_line" -lt "$ptu_line" ]; then
   ok "lifecycle order: UserPromptSubmit before PostToolUse"
@@ -128,7 +130,8 @@ echo "--- detail content ---"
 write_config true false
 out="$(run_status)"
 
-echo "$out" | grep -i "context-monitor" | grep -qi "ENABLED\|enabled" \
+cm_lines="$(grep -i "context-monitor" <<<"$out")"
+grep -qi "ENABLED\|enabled" <<<"$cm_lines" \
   && ok "context-monitor line includes enabled state" \
   || fail "context-monitor detail missing enabled indicator" "got: $out"
 
@@ -167,7 +170,7 @@ PYEOF
 
 write_config true false
 out="$(run_status_with_settings)"
-echo "$out" | grep -qiE "schema|broken|stdin|repair" \
+grep -qiE "schema|broken|stdin|repair" <<<"$out" \
   && ok "status warns about schema issue when type=stdin" \
   || fail "status should warn about schema issues" "got: $out"
 
@@ -187,7 +190,7 @@ PYEOF
 
 write_config true false
 out="$(run_status_with_settings)"
-echo "$out" | grep -qiE "schema|broken|stdin" \
+grep -qiE "schema|broken|stdin" <<<"$out" \
   && fail "status should not warn when settings are clean" "got: $out" \
   || ok "clean settings: no schema warning in status"
 
@@ -269,7 +272,7 @@ with open(path, "w") as f:
 PYEOF
 
 out=$(MEMO_FLOW_CONFIG="$PROJ_CFG" MEMO_FLOW_SETTINGS="$PROJ_SETTINGS" "$CLI" status 2>/dev/null)
-echo "$out" | grep -q "command not found" \
+grep -q "command not found" <<<"$out" \
   && fail "audit reports phantom command-not-found when hook script exists" "got: $out" \
   || ok "audit resolves command paths against the right project root"
 
@@ -325,10 +328,10 @@ with open(path, "w") as f:
 PYEOF
 
 out=$(MEMO_FLOW_CONFIG="$DEAD_CFG" MEMO_FLOW_SETTINGS="$DEAD_SETTINGS" "$CLI" status 2>/dev/null)
-echo "$out" | grep -q "NOT wired" \
+grep -q "NOT wired" <<<"$out" \
   && ok "unwired enabled hook flagged as NOT wired" \
   || fail "unwired hook not flagged" "got: $out"
-echo "$out" | grep -q "install.sh" \
+grep -q "install.sh" <<<"$out" \
   && ok "unwired hook line carries a repair hint" \
   || fail "repair hint missing" "got: $out"
 
@@ -347,7 +350,7 @@ with open(path, "w") as f:
 PYEOF
 
 out=$(MEMO_FLOW_CONFIG="$DEAD_CFG" MEMO_FLOW_SETTINGS="$DEAD_SETTINGS" "$CLI" status 2>/dev/null)
-echo "$out" | grep -q "NOT wired" \
+grep -q "NOT wired" <<<"$out" \
   && fail "wired hook falsely flagged" "got: $out" \
   || ok "fully wired hook shows plain ENABLED"
 
@@ -402,7 +405,7 @@ with open(path, "w") as f:
 PYEOF
 
 out=$(HOME="$UHOME" MEMO_FLOW_CONFIG="$USCOPE_CFG" MEMO_FLOW_SETTINGS="$USCOPE_SETTINGS" "$CLI" status 2>/dev/null)
-echo "$out" | grep -q "NOT wired" \
+grep -q "NOT wired" <<<"$out" \
   && fail "user-scope wired hook falsely flagged NOT wired" "got: $out" \
   || ok "user-scope wiring recognized (no false NOT wired)"
 
@@ -416,7 +419,7 @@ with open(path, "w") as f:
 PYEOF
 
 out=$(HOME="$UHOME" MEMO_FLOW_CONFIG="$USCOPE_CFG" MEMO_FLOW_SETTINGS="$USCOPE_SETTINGS" "$CLI" status 2>/dev/null)
-echo "$out" | grep -q "NOT wired" \
+grep -q "NOT wired" <<<"$out" \
   && ok "hook wired in neither scope still flagged" \
   || fail "unwired hook not flagged with HOME override" "got: $out"
 

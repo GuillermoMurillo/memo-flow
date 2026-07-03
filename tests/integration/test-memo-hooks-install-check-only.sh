@@ -120,8 +120,10 @@ else
 fi
 
 if grep -qF '/install-memo-hooks' "$ENTRY_SH"; then
+  # capture before trimming: grep | head under pipefail risks SIGPIPE → 141
+  refs="$(grep -nF '/install-memo-hooks' "$ENTRY_SH")"
   fail "install.sh source references /install-memo-hooks (should be /memo-hooks)" \
-    "$(grep -nF '/install-memo-hooks' "$ENTRY_SH" | head -3)"
+    "$(head -3 <<<"$refs")"
 else
   ok "install.sh source free of /install-memo-hooks"
 fi

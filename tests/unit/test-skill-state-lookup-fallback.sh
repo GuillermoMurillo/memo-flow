@@ -16,19 +16,22 @@ ok()   { echo "  PASS: $1"; PASS=$((PASS + 1)); }
 fail() { echo "  FAIL: $1"; [ -n "${2:-}" ] && echo "        $2"; FAIL=$((FAIL + 1)); }
 
 # helper: extract the Step 1 section only
+# (captured once per file: piping awk into grep -q under pipefail is flaky —
+# grep exits at first match, awk takes SIGPIPE → 141)
 step1() {
   awk '/^## Step 1/,/^## [^S]/' "$1"
 }
 
 MEMO_FLOW="$REPO_ROOT/skills/engineering/memo-flow/SKILL.md"
+memo_flow_step1="$(step1 "$MEMO_FLOW")"
 
-if step1 "$MEMO_FLOW" | grep -q "find .claude/skills -name base-state.sh"; then
+if grep -q "find .claude/skills -name base-state.sh" <<<"$memo_flow_step1"; then
   ok "memo-flow Step 1 keeps the find lookup"
 else
   fail "memo-flow Step 1 lost the find lookup"
 fi
 
-if step1 "$MEMO_FLOW" | grep -q '\.claude/skills/memo-flow/modules/base-state\.sh'; then
+if grep -q '\.claude/skills/memo-flow/modules/base-state\.sh' <<<"$memo_flow_step1"; then
   ok "memo-flow Step 1 has direct-path fallback"
 else
   fail "memo-flow Step 1 missing direct-path fallback" \
@@ -36,14 +39,15 @@ else
 fi
 
 MEMO_HOOKS="$REPO_ROOT/skills/engineering/memo-hooks/SKILL.md"
+memo_hooks_step1="$(step1 "$MEMO_HOOKS")"
 
-if step1 "$MEMO_HOOKS" | grep -q "find .claude/skills -name state.sh"; then
+if grep -q "find .claude/skills -name state.sh" <<<"$memo_hooks_step1"; then
   ok "memo-hooks Step 1 keeps the find lookup"
 else
   fail "memo-hooks Step 1 lost the find lookup"
 fi
 
-if step1 "$MEMO_HOOKS" | grep -q '\.claude/skills/memo-hooks/modules/state\.sh'; then
+if grep -q '\.claude/skills/memo-hooks/modules/state\.sh' <<<"$memo_hooks_step1"; then
   ok "memo-hooks Step 1 has direct-path fallback"
 else
   fail "memo-hooks Step 1 missing direct-path fallback" \

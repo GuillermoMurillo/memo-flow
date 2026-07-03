@@ -18,32 +18,32 @@ FAIL=0
 ok()   { echo "  PASS: $1"; PASS=$((PASS + 1)); }
 fail() { echo "  FAIL: $1"; [ -n "${2:-}" ] && echo "        $2"; FAIL=$((FAIL + 1)); }
 
-# Installation section only (up to the next ## heading)
-install_section() {
-  awk '/^## Installation/,/^## [^I]/' "$SKILL"
-}
+# Installation section only (up to the next ## heading), captured once:
+# piping awk into grep -q under pipefail is flaky (grep exits at first
+# match, awk takes SIGPIPE → 141)
+install_section="$(awk '/^## Installation/,/^## [^I]/' "$SKILL")"
 
-if install_section | grep -q '\.claude/memo-flow/bin/afk-cook'; then
+if grep -q '\.claude/memo-flow/bin/afk-cook' <<<"$install_section"; then
   ok "Installation names the wrapper path"
 else
   fail "Installation missing wrapper path .claude/memo-flow/bin/afk-cook"
 fi
 
-if install_section | grep -q '\.claude/skills/afk-cook' \
-   && install_section | grep -q 'slice-prompt\.md'; then
+if grep -q '\.claude/skills/afk-cook' <<<"$install_section" \
+   && grep -q 'slice-prompt\.md' <<<"$install_section"; then
   ok "Installation locates real script + slice-prompt.md in the skill folder"
 else
   fail "Installation missing real script / slice-prompt.md location" \
     "expected .claude/skills/afk-cook/ and slice-prompt.md in the Installation section"
 fi
 
-if install_section | grep -q 'exec' && install_section | grep -q '\$0'; then
+if grep -q 'exec' <<<"$install_section" && grep -q '\$0' <<<"$install_section"; then
   ok "Installation explains the exec/\$0 wrapper indirection"
 else
   fail "Installation missing wrapper indirection explanation (exec, \$0)"
 fi
 
-if install_section | grep -Eq 'npx skills.*add|skills add'; then
+if grep -Eq 'npx skills.*add|skills add' <<<"$install_section"; then
   ok "recovery hint covers a missing skill install"
 else
   fail "recovery hint missing skill-install path" \

@@ -56,14 +56,14 @@ fi
 SKILL="$REPO_ROOT/skills/engineering/memo-flow/SKILL.md"
 branch_a="$(awk '/^## Branch A/,/^## Branch [^A]/' "$SKILL")"
 
-if echo "$branch_a" | grep -q '\.worktreeinclude'; then
+if grep -q '\.worktreeinclude' <<<"$branch_a"; then
   ok "Branch A writes .worktreeinclude"
 else
   fail "Branch A missing .worktreeinclude write step"
 fi
 
 for entry in ".claude/skills/" ".claude/memo-flow/" ".claude/settings.json"; do
-  if echo "$branch_a" | grep -qF "$entry"; then
+  if grep -qF "$entry" <<<"$branch_a"; then
     ok "Branch A .worktreeinclude covers $entry"
   else
     fail "Branch A .worktreeinclude missing $entry"
@@ -71,7 +71,7 @@ for entry in ".claude/skills/" ".claude/memo-flow/" ".claude/settings.json"; do
 done
 
 # manifest-tracked like the other line-based mutations (gitignore_entry kind)
-if echo "$branch_a" | grep -q 'worktreeinclude.*gitignore_entry\|gitignore_entry.*worktreeinclude'; then
+if grep -q 'worktreeinclude.*gitignore_entry\|gitignore_entry.*worktreeinclude' <<<"$branch_a"; then
   ok "Branch A tracks .worktreeinclude lines as gitignore_entry mutations"
 else
   fail "Branch A .worktreeinclude write not manifest-tracked as gitignore_entry"
