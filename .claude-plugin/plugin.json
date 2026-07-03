@@ -3,6 +3,7 @@
   "description": "Spec-driven, slice-based, AFK-friendly Claude Code skills.",
   "skills": [
     "./skills/engineering/afk-cook",
+    "./skills/engineering/critique",
     "./skills/engineering/diagnose",
     "./skills/engineering/memo-hooks",
     "./skills/engineering/uninstall-memo-flow",

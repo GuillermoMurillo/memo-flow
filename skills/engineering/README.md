@@ -3,6 +3,7 @@
 Promoted engineering skills. Listed in root `README.md` and `.claude-plugin/plugin.json`.
 
 - [afk-cook](afk-cook/SKILL.md): bash-loop runner for unattended fresh-context execution of `ready-for-agent` issues. Installed into your project by `/memo-flow`.
+- [critique](critique/SKILL.md): adversarial, fresh-context review of a diff covering the axes `/review` and `/review-tests` leave uncovered (scope creep, dead code, error-handling slop, naming, AI-slop sweep). Advisory, never a gate. Emits graded findings (must-fix / should-fix / nit).
 - [diagnose](diagnose/SKILL.md): investigate a bug or unexpected behavior; build a hypothesis tree, narrow with cheap probes.
 - [grill-with-docs](grill-with-docs/SKILL.md): interrogate a design or implementation against authoritative docs to surface gaps.
 - [improve-codebase-architecture](improve-codebase-architecture/SKILL.md): propose architectural refactors using deep-module heuristics.
