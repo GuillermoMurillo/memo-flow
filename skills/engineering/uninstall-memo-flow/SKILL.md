@@ -33,7 +33,7 @@ The script:
   - `doc_block` — removes fence markers and inner content if the region is empty; if inner content exists, prompts interactively (or preserves content + strips fences in non-interactive mode)
   - `file_written` — deletes the file
   - `settings_entry` — removes the entry from `.claude/settings.json`
-  - `gitignore_entry` — removes the line from `.gitignore`
+  - `gitignore_entry` — removes the line from the target file (`.gitignore` or `.worktreeinclude`)
 - Deletes the manifest
 - Removes the project's entry from the user registry
 

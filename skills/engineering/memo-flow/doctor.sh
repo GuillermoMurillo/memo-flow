@@ -186,6 +186,26 @@ print(count)
 echo "doctor: checking $PROJECT_DIR"
 echo ""
 
+# ── project-level checks ──────────────────────────────────────────────────────
+# .worktreeinclude: skills live under gitignored .claude/, so worktrees created
+# by Claude Code only get them when this file lists the paths to copy. Advisory
+# only — the write is a scaffold decision, routed to /memo-flow like other
+# config-level mutations. The copy is a snapshot taken at worktree creation.
+
+skills_installed=false
+for d in "$PROJECT_DIR"/.claude/skills/*/; do
+  if [ -f "${d}SKILL.md" ]; then
+    skills_installed=true
+    break
+  fi
+done
+
+if [ "$skills_installed" = true ] && [ ! -f "$PROJECT_DIR/.worktreeinclude" ]; then
+  echo "  warning: .worktreeinclude missing — worktrees created by Claude Code will not"
+  echo "           get the skills and hooks under .claude/; re-run /memo-flow to scaffold it"
+  echo ""
+fi
+
 if [ "$total" -eq 0 ]; then
   echo "  no managed mutations found in manifest"
   echo ""
