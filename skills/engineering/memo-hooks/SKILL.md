@@ -183,7 +183,7 @@ bash .claude/skills/memo-hooks/install.sh \
   2>/dev/null
 ```
 
-The installer's `_get_missing_hooks` logic detects bundle-vs-hooks-dir gaps and installs them automatically (copies script, inserts config key with `enabled: false`, adds settings entry). After the installer exits, re-run `status` to get a fresh view.
+The installer's `_get_missing_hooks` logic detects bundle-vs-hooks-dir gaps and installs them automatically (copies script, inserts config key with `enabled: false`, adds settings entry). Its `_get_unwired_hooks` companion rewires hooks whose script survived but whose settings entry was lost — reconciliation runs against the bundle's full hook set and the actual runtime state, never the install's historical manifest. After the installer exits, re-run `status` to get a fresh view.
 
 > **This check is transparent to the user when there are no pending hooks.** Only surface the install action when the installer actually copied something new (i.e., check if any hooks were mentioned in its output as "installed new hook: ...").
 
@@ -280,5 +280,5 @@ After the installer exits, re-run state detection (Step 1). If the result is `he
 ## Implementation notes
 
 - All config writes go through `modules/hook-config.sh` (via `memo-hooks --set`). Never edit `config.json` from the skill flow.
-- The installer is idempotent: re-running over a healthy install is a no-op for `config.json`. It only re-copies missing hook scripts and re-adds missing settings.json entries.
+- The installer is idempotent: re-running over a healthy install is a no-op for `config.json`. It re-copies missing hook scripts and re-adds missing settings.json entries by comparing the bundle's full hook set against the runtime (disk + settings.json), not against the manifest — a hook the bundle gained after first install is still picked up. Restored hooks keep whatever `enabled` value config.json already has (default `false` for brand-new hooks); repair never flips consent.
 - If `.claude/memo-flow/bin/memo-hooks` is missing, re-run `install.sh` — it restores the wrapper.

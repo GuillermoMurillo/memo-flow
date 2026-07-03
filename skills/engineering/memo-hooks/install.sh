@@ -28,7 +28,12 @@
 #   - Adds settings.json entries via settings-mutator
 #   - Updates manifest with per-mutation source_checksum
 #   - Updates user registry tier from ["base"] to ["base","hooks"]
-#   - Idempotent: re-run at same scope is a no-op
+#   - Idempotent: re-run at same scope is a no-op when nothing drifted.
+#     Re-runs reconcile against the bundle's full hook set and the actual
+#     runtime state (script on disk + settings.json entry), not the
+#     manifest — so hooks added to the bundle after first install, and
+#     wiring lost since, are restored (#82). Repairs never touch
+#     config.json: enabled/disabled choices survive.
 
 set -euo pipefail
 
@@ -280,6 +285,67 @@ print(json.dumps(missing))
 " 2>/dev/null || echo "[]"
 }
 
+# Returns JSON array of hook filenames whose script IS installed but whose
+# settings.json entry is gone — wired-state drift the manifest can't see (#82).
+# Disjoint from _get_missing_hooks: script-absent hooks go through the missing
+# path, which re-adds the settings entry itself.
+_get_unwired_hooks() {
+  local installed_dir="$1"
+  python3 -c "
+import json, os
+
+hooks_src = '$HOOKS_SRC'
+installed_dir = '$installed_dir'
+settings_file = '$SETTINGS_JSON'
+
+ids = set()
+if os.path.isfile(settings_file):
+    try:
+        data = json.load(open(settings_file))
+        for event_groups in data.get('hooks', {}).values():
+            for group in event_groups:
+                for h in group.get('hooks', []):
+                    ids.add(h.get('id', ''))
+    except Exception:
+        pass
+
+unwired = []
+if os.path.isdir(hooks_src):
+    for f in sorted(os.listdir(hooks_src)):
+        if not f.endswith('.sh'):
+            continue
+        if not os.path.isfile(os.path.join(installed_dir, f)):
+            continue
+        if 'memo-flow:' + f[:-3] not in ids:
+            unwired.append(f)
+
+print(json.dumps(unwired))
+" 2>/dev/null || echo "[]"
+}
+
+# Appends a settings_entry manifest record unless one already exists for the
+# hook_id — initial-install records use legacy ids (settings-skill-*), so the
+# dedupe key is hook_id, which is also what uninstall removes by.
+_manifest_record_settings_entry() {
+  local hook_stem="$1"
+  local hook_id="memo-flow:${hook_stem}"
+  local exists
+  exists=$(python3 -c "
+import json
+try:
+    data = json.load(open('$MANIFEST'))
+except Exception:
+    print('no'); raise SystemExit
+found = any(m.get('kind') == 'settings_entry' and m.get('hook_id') == '$hook_id'
+            for m in data.get('mutations', []))
+print('yes' if found else 'no')
+" 2>/dev/null || echo "no")
+  if [ "$exists" = "no" ]; then
+    "$MANIFEST_SH" append "$MANIFEST" \
+      "{\"id\":\"memo-flow:settings-${hook_stem}\",\"kind\":\"settings_entry\",\"target\":\"${settings_rel}\",\"hook_id\":\"${hook_id}\",\"scope\":\"${SCOPE}\",\"customized\":false}"
+  fi
+}
+
 # ── re-run detection + drift check ───────────────────────────────────────────
 
 _has_hook_mutations() {
@@ -463,7 +529,10 @@ if [ "$(_has_hook_mutations)" = "yes" ]; then
   missing_json=$(_get_missing_hooks "$hooks_dir")
   missing_count=$(python3 -c "import json,sys; print(len(json.loads(sys.argv[1])))" "$missing_json")
 
-  if [ "$drifted_count" -eq 0 ] && [ "$broken_count" -eq 0 ] && [ "$missing_count" -eq 0 ]; then
+  unwired_json=$(_get_unwired_hooks "$hooks_dir")
+  unwired_count=$(python3 -c "import json,sys; print(len(json.loads(sys.argv[1])))" "$unwired_json")
+
+  if [ "$drifted_count" -eq 0 ] && [ "$broken_count" -eq 0 ] && [ "$missing_count" -eq 0 ] && [ "$unwired_count" -eq 0 ]; then
     echo "install-memo-hooks: all hooks up to date"
     exit 0
   fi
@@ -477,6 +546,9 @@ if [ "$(_has_hook_mutations)" = "yes" ]; then
     fi
     if [ "$missing_count" -gt 0 ]; then
       echo "install-memo-hooks: $missing_count new hook(s) available — run /install-memo-hooks to add"
+    fi
+    if [ "$unwired_count" -gt 0 ]; then
+      echo "install-memo-hooks: $unwired_count hook(s) missing their settings.json entry — run /install-memo-hooks to repair"
     fi
     exit 0
   fi
@@ -509,6 +581,25 @@ if [ "$(_has_hook_mutations)" = "yes" ]; then
         "{\"id\":\"memo-flow:settings-${hook_stem}\",\"kind\":\"settings_entry\",\"target\":\"${settings_rel}\",\"hook_id\":\"${hook_id}\",\"scope\":\"${SCOPE}\",\"customized\":false}"
 
       echo "install-memo-hooks: installed new hook: $hook_stem"
+    done
+  fi
+
+  # rewire hooks whose script survived but whose settings entry is gone.
+  # Repair, not install: config.json is untouched, so enabled stays whatever
+  # the user chose (#82; consent semantics per #68 are preserved — the entry
+  # being re-added was already consented to at install time).
+  if [ "$unwired_count" -gt 0 ]; then
+    for i in $(python3 -c "import sys; print(' '.join(str(x) for x in range($unwired_count)))"); do
+      hook_file=$(python3 -c "import json,sys; print(json.loads(sys.argv[1])[$i])" "$unwired_json")
+      hook_stem="${hook_file%.sh}"
+
+      event=$(_hook_event "$hook_stem")
+      hook_id="memo-flow:${hook_stem}"
+      hook_entry="{\"id\":\"${hook_id}\",\"command\":\".claude/memo-flow/hooks/${hook_file}\",\"type\":\"command\"}"
+      "$SETTINGS_SH" insert "$SETTINGS_JSON" "$event" "" "$hook_entry"
+      _manifest_record_settings_entry "$hook_stem"
+
+      echo "install-memo-hooks: rewired settings entry: $hook_stem"
     done
   fi
 
