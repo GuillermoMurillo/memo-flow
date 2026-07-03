@@ -153,6 +153,27 @@ fi
 
 "$MANIFEST_SH" validate "$MANIFEST" 2>&1 || exit 1
 
+# ── manifest migrations ───────────────────────────────────────────────────────
+# Migrations run on every non-check-only install pass, before any work-gating
+# early-exit below. Gating them behind drift/broken/missing detection means a
+# clean upgrade (nothing else to do) never migrates (issue #67). Each migration
+# is idempotent, so re-runs are no-ops. --check-only must never write, so the
+# whole preamble is skipped under that flag. Future migrations go here too.
+#
+# Migration (issue #65): existing installs may have registered config.json as
+# file_written, which causes the drift detector to report it as drifted-edited
+# on every run. Rewrite to user_config so it is no longer tracked for drift.
+#
+# Scope audit (issue #65): config.json is the only user-mutable defaults file
+# emitted by the memo-flow tier today. The base tier emits doc_block (fenced
+# region in CLAUDE.md / AGENTS.md) and seeds docs/agents/*.md from templates
+# without adding them to the manifest. Neither passes through the file_written
+# drift loop, so no further migration is needed.
+
+if [ "$CHECK_ONLY" != true ]; then
+  "$MANIFEST_SH" migrate-kind "$MANIFEST" "memo-flow:hook-config" "user_config"
+fi
+
 # ── helpers ───────────────────────────────────────────────────────────────────
 
 sha256_file() {
@@ -602,17 +623,6 @@ if [ "$FRESH_CONFIG" = "1" ]; then
   manifest_append_if_absent "$MANIFEST" \
     "{\"id\":\"memo-flow:hook-config\",\"kind\":\"user_config\",\"target\":\".claude/memo-flow/config.json\",\"customized\":false}"
 fi
-
-# Migration: existing installs may have registered config.json as file_written,
-# which causes the drift detector to report it as drifted-edited on every run.
-# Rewrite to user_config so it is no longer tracked for drift.
-#
-# Scope audit (issue #65): config.json is the only user-mutable defaults file
-# emitted by the memo-flow tier today. The base tier emits doc_block (fenced
-# region in CLAUDE.md / AGENTS.md) and seeds docs/agents/*.md from templates
-# without adding them to the manifest. Neither passes through the file_written
-# drift loop, so no further migration is needed.
-"$MANIFEST_SH" migrate-kind "$MANIFEST" "memo-flow:hook-config" "user_config"
 
 # ── add gitignore entries ─────────────────────────────────────────────────────
 
