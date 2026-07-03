@@ -14,10 +14,14 @@ bash "$(find .claude/skills -name state.sh -path '*/memo-hooks/*' 2>/dev/null | 
   detect \
   "$(pwd)/.claude/memo-flow/config.json" \
   "$HOME/.claude/memo-flow/registry.json" \
-  "$(pwd)"
+  "$(pwd)" \
+  "$(pwd)/.claude/settings.json" \
+  "$HOME/.claude/settings.json"
 ```
 
-Output is one of: `not_installed` | `healthy` | `broken_no_config` | `broken_no_registry`
+The two trailing settings paths make detection honest: an enabled hook must have its script on disk and an entry in one of those settings files, or the install is not healthy.
+
+Output is one of: `not_installed` | `healthy` | `broken_no_config` | `broken_no_registry` | `broken_unwired`
 
 Route based on the output:
 
@@ -27,6 +31,7 @@ Route based on the output:
 | `healthy` | [Day-two management](#branch-b-day-two-management) |
 | `broken_no_config` | [Broken / repair](#branch-c-broken--repair) |
 | `broken_no_registry` | [Broken / repair](#branch-c-broken--repair) |
+| `broken_unwired` | [Broken / repair](#branch-c-broken--repair) |
 
 > **All-disabled is healthy.** If the user has disabled every hook, state is still `healthy`. Do not nag — go straight to the management menu. Disabled is a valid intentional choice.
 
@@ -155,6 +160,7 @@ PostToolUse
 
 Rules:
 - **Only active (enabled) hooks appear.** Disabled hooks are not listed.
+- **Enabled means verified, not assumed.** `status` cross-checks each enabled hook against the runtime. A hook whose script is missing from `.claude/memo-flow/hooks/` or which has no `settings.json` entry is flagged inline: `<hook>: ENABLED (config) but NOT wired — <reason>; re-run install.sh to repair`. Surface that line to the user verbatim and offer the Branch C repair.
 - **Only event headers with at least one active hook are shown.** No empty sections.
 - **Lifecycle order** (top to bottom): SessionStart → UserPromptSubmit → PreToolUse → PostToolUse → Notification → PreCompact → Stop → SubagentStop → SessionEnd.
 - If no hooks are active, output is `(no active hooks)`.
@@ -225,13 +231,15 @@ Return to B1 with refreshed state after each action. Exit cleanly on **Done** or
 
 ## Branch C: Broken / repair
 
-Fires when state is `broken_no_config` or `broken_no_registry`. Print a diagnostic, then ask whether to repair.
+Fires when state is `broken_no_config`, `broken_no_registry`, or `broken_unwired`. Print a diagnostic, then ask whether to repair.
 
 ### C1. Diagnostic
 
 **`broken_no_config`** — the user registry lists this project as hooks-installed, but `.claude/memo-flow/config.json` is missing or unreadable. Likely cause: manual deletion or a failed install. Hook scripts may still be in `.claude/memo-flow/hooks/` but hooks cannot read their configuration.
 
 **`broken_no_registry`** — `.claude/memo-flow/config.json` exists, but `~/.claude/memo-flow/registry.json` does not list this project with the `hooks` tier. Likely cause: the registry was reset or the project was moved. The config survived but the install record is gone.
+
+**`broken_unwired`** — `config.json` enables a hook that cannot fire: its script is missing from `.claude/memo-flow/hooks/` or it has no `settings.json` entry. Likely cause: the bundle gained the hook after this project's first install, or the wiring was deleted by hand. Run `memo-hooks status` to see exactly which hook is dead and why. Config choices are intact — only the runtime wiring is gone, and re-running the installer restores it without changing any enabled/disabled decision.
 
 ### C2. Ask the user
 

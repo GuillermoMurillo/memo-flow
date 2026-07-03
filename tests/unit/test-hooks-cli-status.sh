@@ -292,6 +292,65 @@ SETTINGS_AFTER=$(sha256sum "$SETTINGS" | awk '{print $1}')
   && ok "--repair-settings is a no-op when settings are clean" \
   || fail "--repair-settings mutated clean settings"
 
+# ── honest state: ENABLED-in-config vs actually wired (#82) ───────────────────
+# An enabled hook whose script is missing or which has no settings.json entry
+# is dead — status must say so and point at the repair path.
+
+echo ""
+echo "--- status flags enabled-but-unwired hooks ---"
+
+DEAD="$WORK/dead-proj"
+mkdir -p "$DEAD/.claude/memo-flow/hooks"
+DEAD_CFG="$DEAD/.claude/memo-flow/config.json"
+DEAD_SETTINGS="$DEAD/.claude/settings.json"
+
+python3 - "$DEAD_CFG" <<'PYEOF'
+import json, sys
+path = sys.argv[1]
+data = {
+  "context-monitor": {"enabled": True, "threshold": 130000, "mode": "notify"},
+  "skill-leaderboard": {"enabled": False, "output_file": "~/.claude/memo-flow/skill-usage.json"}
+}
+with open(path, "w") as f:
+    json.dump(data, f, indent=2)
+    f.write("\n")
+PYEOF
+
+python3 - "$DEAD_SETTINGS" <<'PYEOF'
+import json, sys
+path = sys.argv[1]
+with open(path, "w") as f:
+    json.dump({"hooks": {}}, f, indent=2)
+    f.write("\n")
+PYEOF
+
+out=$(MEMO_FLOW_CONFIG="$DEAD_CFG" MEMO_FLOW_SETTINGS="$DEAD_SETTINGS" "$CLI" status 2>/dev/null)
+echo "$out" | grep -q "NOT wired" \
+  && ok "unwired enabled hook flagged as NOT wired" \
+  || fail "unwired hook not flagged" "got: $out"
+echo "$out" | grep -q "install.sh" \
+  && ok "unwired hook line carries a repair hint" \
+  || fail "repair hint missing" "got: $out"
+
+# fully wired hook (script on disk + settings entry) → plain ENABLED, no flag
+touch "$DEAD/.claude/memo-flow/hooks/context-monitor.sh"
+chmod +x "$DEAD/.claude/memo-flow/hooks/context-monitor.sh"
+python3 - "$DEAD_SETTINGS" <<'PYEOF'
+import json, sys
+path = sys.argv[1]
+data = {"hooks": {"UserPromptSubmit": [{"matcher": "", "hooks": [
+    {"id": "memo-flow:context-monitor", "type": "command", "command": ".claude/memo-flow/hooks/context-monitor.sh"}
+]}]}}
+with open(path, "w") as f:
+    json.dump(data, f, indent=2)
+    f.write("\n")
+PYEOF
+
+out=$(MEMO_FLOW_CONFIG="$DEAD_CFG" MEMO_FLOW_SETTINGS="$DEAD_SETTINGS" "$CLI" status 2>/dev/null)
+echo "$out" | grep -q "NOT wired" \
+  && fail "wired hook falsely flagged" "got: $out" \
+  || ok "fully wired hook shows plain ENABLED"
+
 echo ""
 echo "──────────────────────────────────────────"
 echo "PASS: $PASS  FAIL: $FAIL"

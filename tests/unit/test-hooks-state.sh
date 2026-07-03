@@ -359,6 +359,122 @@ entry_count=$(python3 -c "import json,sys; print(len(json.loads(sys.argv[1])))" 
   && ok "mixed entries: only broken one reported" \
   || fail "mixed entries" "got $entry_count findings: $result"
 
+# ── wiring: detect cross-checks enabled hooks against runtime (#82) ──────────
+
+echo ""
+echo "--- wiring (detect with settings file) ---"
+
+WPROJ="$WORK/wired-project"
+WCONFIG="$WPROJ/.claude/memo-flow/config.json"
+WSETTINGS="$WPROJ/.claude/settings.json"
+mkdir -p "$WPROJ/.claude/memo-flow/hooks"
+
+# registry lists the project with hooks tier
+python3 -c "
+import json
+data = {'projects': [{'path': '$WPROJ', 'tiers': ['base', 'hooks'], 'last_updated': '2026-01-01T00:00:00Z'}]}
+with open('$REGISTRY', 'w') as f:
+    json.dump(data, f)
+    f.write('\n')
+"
+
+# config: context-monitor enabled
+python3 -c "
+import json
+data = {'context-monitor': {'enabled': True, 'threshold': 130000, 'mode': 'notify'}}
+with open('$WCONFIG', 'w') as f:
+    json.dump(data, f)
+    f.write('\n')
+"
+
+# settings: no memo-flow entries at all
+python3 -c "
+import json
+with open('$WSETTINGS', 'w') as f:
+    json.dump({'hooks': {}}, f)
+    f.write('\n')
+"
+
+# enabled hook, script missing, settings entry missing → broken_unwired
+result="$(bash "$STATE_SH" detect "$WCONFIG" "$REGISTRY" "$WPROJ" "$WSETTINGS" 2>/dev/null)"
+[[ "$result" == "broken_unwired" ]] \
+  && ok "enabled hook with no script and no settings entry → broken_unwired" \
+  || fail "unwired enabled hook" "got '$result'"
+
+# script on disk but settings entry still missing → broken_unwired
+echo "#!/bin/bash" > "$WPROJ/.claude/memo-flow/hooks/context-monitor.sh"
+result="$(bash "$STATE_SH" detect "$WCONFIG" "$REGISTRY" "$WPROJ" "$WSETTINGS" 2>/dev/null)"
+[[ "$result" == "broken_unwired" ]] \
+  && ok "script on disk, no settings entry → broken_unwired" \
+  || fail "script only" "got '$result'"
+
+# script on disk + settings entry present → healthy
+python3 -c "
+import json
+data = {'hooks': {'UserPromptSubmit': [{'matcher': '', 'hooks': [
+    {'id': 'memo-flow:context-monitor', 'type': 'command', 'command': '.claude/memo-flow/hooks/context-monitor.sh'}
+]}]}}
+with open('$WSETTINGS', 'w') as f:
+    json.dump(data, f)
+    f.write('\n')
+"
+result="$(bash "$STATE_SH" detect "$WCONFIG" "$REGISTRY" "$WPROJ" "$WSETTINGS" 2>/dev/null)"
+[[ "$result" == "healthy" ]] \
+  && ok "script + settings entry → healthy" \
+  || fail "fully wired" "got '$result'"
+
+# disabled hook missing everything → still healthy (opt-out is not drift)
+python3 -c "
+import json
+data = {
+  'context-monitor': {'enabled': True, 'threshold': 130000, 'mode': 'notify'},
+  'handoff-clipboard': {'enabled': False}
+}
+with open('$WCONFIG', 'w') as f:
+    json.dump(data, f)
+    f.write('\n')
+"
+result="$(bash "$STATE_SH" detect "$WCONFIG" "$REGISTRY" "$WPROJ" "$WSETTINGS" 2>/dev/null)"
+[[ "$result" == "healthy" ]] \
+  && ok "disabled unwired hook → still healthy" \
+  || fail "disabled unwired hook" "got '$result'"
+
+# entry wired at a second settings file (user scope) counts as wired
+python3 -c "
+import json
+with open('$WSETTINGS', 'w') as f:
+    json.dump({'hooks': {}}, f)
+    f.write('\n')
+"
+USER_SETTINGS="$WORK/user-settings.json"
+python3 -c "
+import json
+data = {'hooks': {'UserPromptSubmit': [{'matcher': '', 'hooks': [
+    {'id': 'memo-flow:context-monitor', 'type': 'command', 'command': '.claude/memo-flow/hooks/context-monitor.sh'}
+]}]}}
+with open('$USER_SETTINGS', 'w') as f:
+    json.dump(data, f)
+    f.write('\n')
+"
+result="$(bash "$STATE_SH" detect "$WCONFIG" "$REGISTRY" "$WPROJ" "$WSETTINGS" "$USER_SETTINGS" 2>/dev/null)"
+[[ "$result" == "healthy" ]] \
+  && ok "entry in second (user-scope) settings file → healthy" \
+  || fail "user-scope settings" "got '$result'"
+
+# legacy arity: no settings file argument → wiring check skipped (healthy)
+python3 -c "
+import json
+data = {'context-monitor': {'enabled': True, 'threshold': 130000, 'mode': 'notify'}}
+with open('$WCONFIG', 'w') as f:
+    json.dump(data, f)
+    f.write('\n')
+"
+rm -f "$WPROJ/.claude/memo-flow/hooks/context-monitor.sh"
+result="$(bash "$STATE_SH" detect "$WCONFIG" "$REGISTRY" "$WPROJ" 2>/dev/null)"
+[[ "$result" == "healthy" ]] \
+  && ok "no settings arg → legacy behavior (healthy)" \
+  || fail "legacy arity" "got '$result'"
+
 echo ""
 echo "──────────────────────────────────────────"
 echo "PASS: $PASS  FAIL: $FAIL"

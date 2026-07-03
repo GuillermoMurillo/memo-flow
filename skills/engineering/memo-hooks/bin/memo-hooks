@@ -298,13 +298,14 @@ PYEOF
 }
 
 cmd_status() {
-  local config_json
+  local config_json hooks_dir
   config_json=$("$HOOK_CONFIG_SH" get-all "$CONFIG_FILE")
+  hooks_dir="$(dirname "$CONFIG_FILE")/hooks"
 
-  python3 - "$config_json" "$_LIFECYCLE_ORDER" <<'PYEOF'
-import json, sys
+  python3 - "$config_json" "$_LIFECYCLE_ORDER" "$hooks_dir" "$SETTINGS_FILE" <<'PYEOF'
+import json, os, sys
 
-config_json_str, lifecycle_str = sys.argv[1], sys.argv[2]
+config_json_str, lifecycle_str, hooks_dir, settings_file = sys.argv[1:5]
 lifecycle_order = lifecycle_str.split()
 
 try:
@@ -316,7 +317,19 @@ except Exception:
 HOOK_EVENTS = {
     "context-monitor":   "UserPromptSubmit",
     "skill-leaderboard": "PostToolUse",
+    "handoff-clipboard": "PostToolUse",
 }
+
+# settings.json ids — an enabled hook without one cannot fire (#82)
+settings_ids = set()
+try:
+    sdata = json.load(open(settings_file))
+    for event_groups in sdata.get("hooks", {}).values():
+        for group in event_groups:
+            for h in group.get("hooks", []):
+                settings_ids.add(h.get("id", ""))
+except Exception:
+    pass
 
 # collect only enabled hooks, keyed by event
 by_event: dict[str, list[tuple[str, dict]]] = {}
@@ -330,7 +343,19 @@ if not by_event:
     print("(no active hooks)")
     sys.exit(0)
 
+def wiring_problems(name: str) -> list:
+    problems = []
+    if not os.path.isfile(os.path.join(hooks_dir, name + ".sh")):
+        problems.append("script missing")
+    if "memo-flow:" + name not in settings_ids:
+        problems.append("no settings.json entry")
+    return problems
+
 def format_hook(name: str, cfg: dict) -> str:
+    problems = wiring_problems(name)
+    if problems:
+        return (f"  {name}: ENABLED (config) but NOT wired — "
+                f"{', '.join(problems)}; re-run install.sh to repair")
     if name == "context-monitor":
         mode = cfg.get("mode", "notify")
         threshold = cfg.get("threshold", 130000)
