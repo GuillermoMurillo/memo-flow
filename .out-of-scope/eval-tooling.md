@@ -1,6 +1,6 @@
 # Eval Tooling
 
-memo-flow does not build evaluation or measurement tooling: LLM-as-judge panels, scored improvement loops, eval regression lanes for prompt-only skills, or coverage platform integrations (SonarQube and similar).
+memo-flow does not build evaluation or measurement tooling: LLM-as-judge panels, scored improvement loops, usage-metrics-driven auto-improvement, eval regression lanes for prompt-only skills, or coverage platform integrations (SonarQube and similar).
 
 ## Why this is out of scope
 
