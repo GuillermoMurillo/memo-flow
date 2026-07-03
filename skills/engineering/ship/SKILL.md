@@ -59,6 +59,16 @@ Present the findings verbatim and **stop**. The user must explicitly say one of:
 
 Do not auto-interpret an empty findings report as "passed" — wait for the user. The review gate is the load-bearing reason this skill exists: skipping the review is the single most common shipping mistake.
 
+### 3a. Offer `/critique` (optional, advisory)
+
+After the review gate passes and before drafting the PR body, offer `/critique` if the skill is present. It is a hostile, fresh-context pass over the axes `/review` leaves uncovered (scope creep, dead code, error-handling slop, naming, the AI-slop sweep). It returns graded, advisory findings (must-fix / should-fix / nit); it is never a gate and blocks nothing.
+
+Offer it, don't force it:
+
+- If `/critique` is absent, skip this step silently and proceed to step 4. It is never a hard dependency.
+- If present, ask whether to run it. If the user declines, proceed to step 4.
+- If they run it, present the findings verbatim and let the user triage. The grades are recommendations, not blockers: a must-fix finding does not stop the ship unless the user chooses to address it first. The user's call, every time.
+
 ### 4. Draft the PR body
 
 Title: take the parent PRD's title verbatim (`gh issue view <PRD> --json title`), strip any leading `PRD:` prefix, then match the commit-style convention used on this branch. Inspect `git log main..HEAD --format=%s` — if every commit starts with a conventional-commits prefix (`feat:`, `fix:`, `chore:`, `refactor:`, etc.), apply the dominant prefix to the PR title. If commits use no consistent prefix, leave the title bare. Don't invent a prefix the branch isn't already using.

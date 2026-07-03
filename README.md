@@ -34,6 +34,7 @@ Then in a Claude Code session:
 - `/memo-flow`, `/memo-hooks`: state-routed installers. Detect fresh / healthy / broken, route accordingly.
 - `/ship`: finished branch to open PR with `Closes #<PRD>` baked in. Runs `/review` as a gate.
 - `/review-tests`: test-sufficiency axis that runs alongside `/review`. Asks whether existing tests cover the change.
+- `/critique`: adversarial, fresh-context pass covering what `/review` and `/review-tests` leave uncovered (scope creep, dead code, error-handling slop, naming, AI-slop sweep). Advisory, never a gate.
 - `/write-a-hook`: scaffold a new hook so script, config, settings, and README stay consistent.
 - `/pager`: portable display mode for small screens (glasses, phone, watch).
 - `/uninstall-memo-flow`, `/uninstall-memo-hooks`: reverse everything cleanly.
@@ -89,7 +90,7 @@ Plus one global entry at `~/.claude/memo-flow/registry.json` that tracks which p
 plan      /grill-me   /prototype   /to-prd   /grill-with-docs   /to-issues
 build     /afk-cook   /tdd
 stuck     /diagnose   /zoom-out    /improve-codebase-architecture
-ship      /review     /review-tests   /ship
+ship      /review     /review-tests   /critique   /ship
 maintain  /triage     /memo-flow   /memo-hooks   /handoff
 ```
 
