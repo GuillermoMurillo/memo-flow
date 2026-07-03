@@ -159,6 +159,71 @@ out="$(bash "$REGISTRY_SH" get "$REG" "$WORK/plain" 2>/dev/null)"
   && ok "get unregistered non-git path → empty" \
   || fail "get unregistered non-git path" "got: '$out'"
 
+# ── update-tiers: worktree path updates the main-repo entry (#88) ─────────────
+# install.sh from a worktree does get (finds main entry) then update-tiers with
+# the worktree path. A literal-path match silently no-ops, so the hooks tier is
+# never recorded and detect loops on broken_no_registry forever.
+
+echo ""
+echo "--- update-tiers: git worktrees ---"
+
+seed "[\"$GIT_REPO\"]"
+bash "$REGISTRY_SH" update-tiers "$REG" "$GIT_WT" '["base","hooks"]' 2>/dev/null
+
+python3 -c "
+import json
+data = json.load(open('$REG'))
+projects = data['projects']
+assert len(projects) == 1, projects
+assert projects[0]['path'] == '$GIT_REPO', projects[0]['path']
+assert projects[0]['tiers'] == ['base', 'hooks'], projects[0]['tiers']
+" 2>/dev/null \
+  && ok "update-tiers from worktree updates the main-repo entry" \
+  || fail "update-tiers from worktree" "got: $(cat "$REG")"
+
+# update-tiers with a literal registered non-git path still works
+mkdir -p "$WORK/plain-reg"
+seed "[\"$WORK/plain-reg\"]"
+bash "$REGISTRY_SH" update-tiers "$REG" "$WORK/plain-reg" '["base","hooks"]' 2>/dev/null
+python3 -c "
+import json
+data = json.load(open('$REG'))
+assert data['projects'][0]['tiers'] == ['base', 'hooks'], data['projects']
+" 2>/dev/null \
+  && ok "update-tiers literal non-git path unchanged" \
+  || fail "update-tiers literal path" "got: $(cat "$REG")"
+
+# ── insert: worktree path upserts the main-repo entry, no pollution (#88) ─────
+
+echo ""
+echo "--- insert: git worktrees ---"
+
+seed "[\"$GIT_REPO\"]"
+bash "$REGISTRY_SH" insert "$REG" "$GIT_WT" '["base","hooks"]' 2>/dev/null
+
+python3 -c "
+import json
+data = json.load(open('$REG'))
+projects = data['projects']
+assert len(projects) == 1, projects
+assert projects[0]['path'] == '$GIT_REPO', projects[0]['path']
+assert projects[0]['tiers'] == ['base', 'hooks'], projects[0]['tiers']
+" 2>/dev/null \
+  && ok "insert from worktree upserts main entry, no worktree-path pollution" \
+  || fail "insert from worktree" "got: $(cat "$REG")"
+
+# insert of a fresh unregistered non-git path still appends literally
+mkdir -p "$WORK/plain-new"
+bash "$REGISTRY_SH" insert "$REG" "$WORK/plain-new" '["base"]' 2>/dev/null
+python3 -c "
+import json
+data = json.load(open('$REG'))
+paths = [p['path'] for p in data['projects']]
+assert paths == ['$GIT_REPO', '$WORK/plain-new'], paths
+" 2>/dev/null \
+  && ok "insert fresh non-git path appends literal entry" \
+  || fail "insert fresh path" "got: $(cat "$REG")"
+
 # ── prune-missing: atomic write (file still valid JSON after prune) ───────────
 
 echo ""
