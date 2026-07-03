@@ -539,16 +539,16 @@ if [ "$(_has_hook_mutations)" = "yes" ]; then
 
   if [ "$CHECK_ONLY" = true ]; then
     if [ "$broken_count" -gt 0 ]; then
-      echo "install-memo-hooks: WARNING — $broken_count memo-flow settings entries have type=stdin (broken); re-run /install-memo-hooks to repair"
+      echo "install-memo-hooks: WARNING — $broken_count memo-flow settings entries have type=stdin (broken); re-run /memo-hooks to repair"
     fi
     if [ "$drifted_count" -gt 0 ]; then
-      echo "install-memo-hooks: $drifted_count hook(s) have updates pending — run /install-memo-hooks to review"
+      echo "install-memo-hooks: $drifted_count hook(s) have updates pending — run /memo-hooks to review"
     fi
     if [ "$missing_count" -gt 0 ]; then
-      echo "install-memo-hooks: $missing_count new hook(s) available — run /install-memo-hooks to add"
+      echo "install-memo-hooks: $missing_count new hook(s) available — run /memo-hooks to add"
     fi
     if [ "$unwired_count" -gt 0 ]; then
-      echo "install-memo-hooks: $unwired_count hook(s) missing their settings.json entry — run /install-memo-hooks to repair"
+      echo "install-memo-hooks: $unwired_count hook(s) missing their settings.json entry — run /memo-hooks to repair"
     fi
     exit 0
   fi
@@ -609,7 +609,7 @@ if [ "$(_has_hook_mutations)" = "yes" ]; then
       echo "install-memo-hooks: repaired $repaired settings entries (type=stdin → type=command)"
     fi
     if [ "$drifted_count" -gt 0 ]; then
-      echo "install-memo-hooks: $drifted_count hook(s) have updates pending — run /install-memo-hooks to review"
+      echo "install-memo-hooks: $drifted_count hook(s) have updates pending — run /memo-hooks to review"
     fi
     exit 0
   fi
@@ -658,7 +658,7 @@ fi
 
 if [ "$CHECK_ONLY" = true ]; then
   hook_count=$(ls "$HOOKS_SRC"/*.sh 2>/dev/null | wc -l | tr -d ' ')
-  echo "install-memo-hooks: no install detected — $hook_count hook(s) available, run /install-memo-hooks to set up"
+  echo "install-memo-hooks: no install detected — $hook_count hook(s) available, run /memo-hooks to set up"
   exit 0
 fi
 
