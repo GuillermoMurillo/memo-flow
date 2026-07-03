@@ -248,15 +248,8 @@ _tui_editor() {
 # fall through to an "Other" bucket at the end.
 _LIFECYCLE_ORDER="SessionStart UserPromptSubmit PreToolUse PostToolUse Notification PreCompact Stop SubagentStop SessionEnd"
 
-# Static mapping: hook name → Claude Code event.
-# Update when a new hook is added to the bundle.
-_hook_event() {
-  case "$1" in
-    context-monitor)   echo "UserPromptSubmit" ;;
-    skill-leaderboard) echo "PostToolUse" ;;
-    *)                 echo "Other" ;;
-  esac
-}
+# Hook → event mapping lives in hook-config.sh (queried via events), the
+# single source shared with install.sh (#74).
 
 cmd_repair_settings() {
   if [ ! -f "$SETTINGS_FILE" ]; then
@@ -298,14 +291,15 @@ PYEOF
 }
 
 cmd_status() {
-  local config_json hooks_dir
+  local config_json hooks_dir events_json
   config_json=$("$HOOK_CONFIG_SH" get-all "$CONFIG_FILE")
   hooks_dir="$(dirname "$CONFIG_FILE")/hooks"
+  events_json=$("$HOOK_CONFIG_SH" events 2>/dev/null || echo '{}')
 
-  python3 - "$config_json" "$_LIFECYCLE_ORDER" "$hooks_dir" "$SETTINGS_FILE" <<'PYEOF'
+  python3 - "$config_json" "$_LIFECYCLE_ORDER" "$hooks_dir" "$SETTINGS_FILE" "$events_json" <<'PYEOF'
 import json, os, sys
 
-config_json_str, lifecycle_str, hooks_dir, settings_file = sys.argv[1:5]
+config_json_str, lifecycle_str, hooks_dir, settings_file, events_json_str = sys.argv[1:6]
 lifecycle_order = lifecycle_str.split()
 
 try:
@@ -313,12 +307,14 @@ try:
 except Exception:
     data = {}
 
-# hook-name → event (must match _hook_event() in the shell script)
-HOOK_EVENTS = {
-    "context-monitor":   "UserPromptSubmit",
-    "skill-leaderboard": "PostToolUse",
-    "handoff-clipboard": "PostToolUse",
-}
+# hook-name → event, from hook-config.sh's shared mapping (#74).
+# Fail-open: an empty mapping buckets everything under "Other".
+try:
+    HOOK_EVENTS = json.loads(events_json_str)
+    if not isinstance(HOOK_EVENTS, dict):
+        HOOK_EVENTS = {}
+except Exception:
+    HOOK_EVENTS = {}
 
 # settings.json ids — an enabled hook without one cannot fire (#82)
 settings_ids = set()

@@ -250,14 +250,12 @@ _hook_defaults() {
   "$HOOK_CONFIG_SH" default-config "$hook" 2>/dev/null || echo '{"enabled":false}'
 }
 
+# Hook → lifecycle event lives in hook-config.sh (queried via event), the
+# single source shared with bin/memo-hooks status (#74). Fallback covers
+# bundle hooks not yet declared there, preserving the old catch-all.
 _hook_event() {
   local hook="$1"
-  case "$hook" in
-    context-monitor)   echo "UserPromptSubmit" ;;
-    skill-leaderboard) echo "PostToolUse" ;;
-    handoff-clipboard) echo "PostToolUse" ;;
-    *)                 echo "PostToolUse" ;;
-  esac
+  "$HOOK_CONFIG_SH" event "$hook" 2>/dev/null || echo "PostToolUse"
 }
 
 # Returns JSON array of hook filenames (*.sh) present in the bundle but

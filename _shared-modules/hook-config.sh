@@ -31,6 +31,13 @@
 #   default-config <hook>
 #     Print the bundle's install defaults for the named hook as JSON.
 #     Unknown hook names exit non-zero listing the valid hooks.
+#
+#   event <hook>
+#     Print the Claude Code lifecycle event the named hook fires on.
+#     Unknown hook names exit non-zero listing the valid hooks.
+#
+#   events
+#     Print the full hook → lifecycle-event mapping as JSON.
 
 set -euo pipefail
 
@@ -44,6 +51,16 @@ _INSTALL_DEFAULTS='{
   "context-monitor": {"enabled": false, "threshold": 130000, "mode": "notify"},
   "skill-leaderboard": {"enabled": false, "output_file": "~/.claude/memo-flow/skill-usage.json"},
   "handoff-clipboard": {"enabled": false}
+}'
+
+# Hook → Claude Code lifecycle event — single source of truth (issue #74).
+# install.sh (settings wiring) and bin/memo-hooks (status grouping) both
+# read this via the event/events commands; neither carries its own copy.
+# Add an entry whenever a hook is added to the bundle.
+_HOOK_EVENTS='{
+  "context-monitor": "UserPromptSubmit",
+  "skill-leaderboard": "PostToolUse",
+  "handoff-clipboard": "PostToolUse"
 }'
 
 # Default config for known hooks (all enabled).
@@ -284,6 +301,32 @@ if hook not in install_defaults:
 
 print(json.dumps(install_defaults[hook]))
 PYEOF
+    ;;
+
+  event)
+    hook="${2:-}"
+    if [ -z "$hook" ]; then
+      echo "usage: hook-config.sh event <hook>" >&2
+      exit 1
+    fi
+
+    python3 - "$hook" "$_HOOK_EVENTS" <<'PYEOF'
+import json, sys
+
+hook, events_str = sys.argv[1], sys.argv[2]
+events = json.loads(events_str)
+
+if hook not in events:
+    valid = ", ".join(sorted(events))
+    print(f"hook-config: unknown hook '{hook}' (valid hooks: {valid})", file=sys.stderr)
+    sys.exit(1)
+
+print(events[hook])
+PYEOF
+    ;;
+
+  events)
+    printf '%s\n' "$_HOOK_EVENTS"
     ;;
 
   *)
