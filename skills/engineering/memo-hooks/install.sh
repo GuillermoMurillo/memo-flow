@@ -237,14 +237,12 @@ WRAPPER_EOF
 
 # ── per-hook metadata ─────────────────────────────────────────────────────────
 
+# Per-hook defaults live in one place: hook-config.sh's install-defaults
+# registry (queried via default-config). Fallback covers bundle hooks not
+# yet declared there, preserving the old catch-all behavior.
 _hook_defaults() {
   local hook="$1"
-  case "$hook" in
-    context-monitor)   echo '{"enabled":false,"threshold":130000,"mode":"notify"}' ;;
-    skill-leaderboard) echo '{"enabled":false,"output_file":"~/.claude/memo-flow/skill-usage.json"}' ;;
-    handoff-clipboard) echo '{"enabled":false}' ;;
-    *)                 echo '{"enabled":false}' ;;
-  esac
+  "$HOOK_CONFIG_SH" default-config "$hook" 2>/dev/null || echo '{"enabled":false}'
 }
 
 _hook_event() {

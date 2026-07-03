@@ -19,9 +19,32 @@
 #   set-hook-config <file> <hook> <config-json>
 #     Merge the provided config object into the named hook's entry.
 #     Creates file if absent. Preserves keys not mentioned in config-json.
-#     Atomic write via temp-and-rename.
+#     When the hook key is missing, seeds the bundle's install defaults
+#     first, then applies the merge. Unknown hook names exit non-zero
+#     listing the valid hooks; nothing is written. Atomic write via
+#     temp-and-rename.
+#
+#   insert-if-absent <file> <hook> <config-json>
+#     Insert the config object under the named hook only if the key is
+#     absent. No-op when present. Atomic write via temp-and-rename.
+#
+#   default-config <hook>
+#     Print the bundle's install defaults for the named hook as JSON.
+#     Unknown hook names exit non-zero listing the valid hooks.
 
 set -euo pipefail
+
+# Per-hook install defaults — single source of truth for the shape of a
+# hook's config entry before the user touches it (all hooks ship disabled;
+# users opt in). install.sh seeds config.json from these via insert-if-absent
+# (through the default-config command); set-hook-config seeds a missing hook
+# key from them before applying the caller's field. Also doubles as the
+# registry of valid hook names.
+_INSTALL_DEFAULTS='{
+  "context-monitor": {"enabled": false, "threshold": 130000, "mode": "notify"},
+  "skill-leaderboard": {"enabled": false, "output_file": "~/.claude/memo-flow/skill-usage.json"},
+  "handoff-clipboard": {"enabled": false}
+}'
 
 # Default config for known hooks (all enabled).
 # Used when config.json is missing or unparseable.
@@ -136,12 +159,13 @@ PYEOF
     mkdir -p "$dir"
     tmpfile="$(mktemp "$dir/.hook-config-tmp-XXXXXX.json")"
 
-    python3 - "$file" "$tmpfile" "$hook" "$config_json" "$_DEFAULTS" <<'PYEOF'
+    python3 - "$file" "$tmpfile" "$hook" "$config_json" "$_DEFAULTS" "$_INSTALL_DEFAULTS" <<'PYEOF'
 import json, os, sys
 
-config_file, tmpfile, hook, config_json_str, defaults_str = sys.argv[1:]
+config_file, tmpfile, hook, config_json_str, defaults_str, install_defaults_str = sys.argv[1:]
 
 defaults = json.loads(defaults_str)
+install_defaults = json.loads(install_defaults_str)
 
 try:
     new_config = json.loads(config_json_str)
@@ -164,8 +188,18 @@ if os.path.exists(config_file):
 else:
     data = dict(defaults)
 
+# missing hook key: seed the bundle's install defaults first so a bare
+# entry never drops declared default fields (issue #66). Unknown hook
+# names are refused rather than silently inserting a bare entry.
+if hook not in data:
+    if hook not in install_defaults:
+        valid = ", ".join(sorted(install_defaults))
+        print(f"hook-config: unknown hook '{hook}' (valid hooks: {valid})", file=sys.stderr)
+        os.unlink(tmpfile)
+        sys.exit(1)
+    data[hook] = dict(install_defaults[hook])
+
 # merge: preserve existing keys, update with new_config
-data.setdefault(hook, {})
 data[hook].update(new_config)
 
 with open(tmpfile, "w") as f:
@@ -228,6 +262,28 @@ with open(tmpfile, "w") as f:
 os.rename(tmpfile, config_file)
 PYEOF
     rm -f "$tmpfile"
+    ;;
+
+  default-config)
+    hook="${2:-}"
+    if [ -z "$hook" ]; then
+      echo "usage: hook-config.sh default-config <hook>" >&2
+      exit 1
+    fi
+
+    python3 - "$hook" "$_INSTALL_DEFAULTS" <<'PYEOF'
+import json, sys
+
+hook, install_defaults_str = sys.argv[1], sys.argv[2]
+install_defaults = json.loads(install_defaults_str)
+
+if hook not in install_defaults:
+    valid = ", ".join(sorted(install_defaults))
+    print(f"hook-config: unknown hook '{hook}' (valid hooks: {valid})", file=sys.stderr)
+    sys.exit(1)
+
+print(json.dumps(install_defaults[hook]))
+PYEOF
     ;;
 
   *)
