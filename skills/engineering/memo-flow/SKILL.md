@@ -10,13 +10,17 @@ One skill, three branches. On every invocation, detect install state first, then
 ## Step 1: Detect install state
 
 ```bash
-bash "$(find .claude/skills -name base-state.sh -path '*/memo-flow/*' 2>/dev/null | head -1)" \
+STATE_SH="$(find .claude/skills -name base-state.sh -path '*/memo-flow/*' 2>/dev/null | head -1)"
+[ -n "$STATE_SH" ] || STATE_SH=".claude/skills/memo-flow/modules/base-state.sh"
+bash "$STATE_SH" \
   detect \
   "$(pwd)/.claude/skills" \
   "$(pwd)/CLAUDE.md" \
   "$(pwd)/docs/agents" \
   "$(pwd)/.claude/memo-flow/bin/afk-cook"
 ```
+
+The `find` covers nonstandard install locations; the direct path is the standard install location, used when the substitution comes back empty. If neither resolves to a file on disk, treat the state as `not_installed`.
 
 Output is one of: `not_installed` | `fresh` | `healthy` | `broken_no_skills` | `broken_no_scaffold`
 

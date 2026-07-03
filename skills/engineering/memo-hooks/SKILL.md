@@ -10,7 +10,9 @@ One skill, three branches. On every invocation, detect install state first, then
 ## Step 1: Detect install state
 
 ```bash
-bash "$(find .claude/skills -name state.sh -path '*/memo-hooks/*' 2>/dev/null | head -1)" \
+STATE_SH="$(find .claude/skills -name state.sh -path '*/memo-hooks/*' 2>/dev/null | head -1)"
+[ -n "$STATE_SH" ] || STATE_SH=".claude/skills/memo-hooks/modules/state.sh"
+bash "$STATE_SH" \
   detect \
   "$(pwd)/.claude/memo-flow/config.json" \
   "$HOME/.claude/memo-flow/registry.json" \
@@ -18,6 +20,8 @@ bash "$(find .claude/skills -name state.sh -path '*/memo-hooks/*' 2>/dev/null | 
   "$(pwd)/.claude/settings.json" \
   "$HOME/.claude/settings.json"
 ```
+
+The `find` covers nonstandard install locations; the direct path is the standard install location, used when the substitution comes back empty. If neither resolves to a file on disk, treat the state as `not_installed`.
 
 The two trailing settings paths make detection honest: an enabled hook must have its script on disk and an entry in one of those settings files, or the install is not healthy.
 
