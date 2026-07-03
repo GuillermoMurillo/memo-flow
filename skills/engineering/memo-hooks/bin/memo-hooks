@@ -296,10 +296,16 @@ cmd_status() {
   hooks_dir="$(dirname "$CONFIG_FILE")/hooks"
   events_json=$("$HOOK_CONFIG_SH" events 2>/dev/null || echo '{}')
 
-  python3 - "$config_json" "$_LIFECYCLE_ORDER" "$hooks_dir" "$SETTINGS_FILE" "$events_json" <<'PYEOF'
+  # wiring lives in the settings file of whichever scope install.sh ran at:
+  # project (.claude/settings.json) or user (~/.claude/settings.json). Check
+  # the union, same as state.sh detect, or user-scope installs are flagged
+  # NOT wired forever (#82).
+  local user_settings="${HOME:-}/.claude/settings.json"
+  python3 - "$config_json" "$_LIFECYCLE_ORDER" "$hooks_dir" "$events_json" "$SETTINGS_FILE" "$user_settings" <<'PYEOF'
 import json, os, sys
 
-config_json_str, lifecycle_str, hooks_dir, settings_file, events_json_str = sys.argv[1:6]
+config_json_str, lifecycle_str, hooks_dir, events_json_str = sys.argv[1:5]
+settings_files = sys.argv[5:]
 lifecycle_order = lifecycle_str.split()
 
 try:
@@ -316,16 +322,18 @@ try:
 except Exception:
     HOOK_EVENTS = {}
 
-# settings.json ids — an enabled hook without one cannot fire (#82)
+# settings.json ids — an enabled hook without one cannot fire (#82).
+# Union across scopes: an entry in either file wires the hook.
 settings_ids = set()
-try:
-    sdata = json.load(open(settings_file))
+for sf in settings_files:
+    try:
+        sdata = json.load(open(sf))
+    except Exception:
+        continue
     for event_groups in sdata.get("hooks", {}).values():
         for group in event_groups:
             for h in group.get("hooks", []):
                 settings_ids.add(h.get("id", ""))
-except Exception:
-    pass
 
 # collect only enabled hooks, keyed by event
 by_event: dict[str, list[tuple[str, dict]]] = {}

@@ -351,6 +351,75 @@ echo "$out" | grep -q "NOT wired" \
   && fail "wired hook falsely flagged" "got: $out" \
   || ok "fully wired hook shows plain ENABLED"
 
+# ── user-scope installs: wiring may live in ~/.claude/settings.json (#82) ─────
+# install.sh --scope user writes the settings entry to the user file, not the
+# project file. status must union both scopes, or every user-scope install is
+# flagged NOT wired with a repair hint that dead-ends on the cross-scope guard.
+
+echo ""
+echo "--- status honors user-scope settings wiring ---"
+
+USCOPE="$WORK/uscope-proj"
+UHOME="$WORK/uscope-home"
+mkdir -p "$USCOPE/.claude/memo-flow/hooks" "$UHOME/.claude"
+touch "$USCOPE/.claude/memo-flow/hooks/context-monitor.sh"
+chmod +x "$USCOPE/.claude/memo-flow/hooks/context-monitor.sh"
+
+USCOPE_CFG="$USCOPE/.claude/memo-flow/config.json"
+USCOPE_SETTINGS="$USCOPE/.claude/settings.json"
+
+python3 - "$USCOPE_CFG" <<'PYEOF'
+import json, sys
+path = sys.argv[1]
+data = {
+  "context-monitor": {"enabled": True, "threshold": 130000, "mode": "notify"},
+  "skill-leaderboard": {"enabled": False, "output_file": "~/.claude/memo-flow/skill-usage.json"}
+}
+with open(path, "w") as f:
+    json.dump(data, f, indent=2)
+    f.write("\n")
+PYEOF
+
+# project settings: no memo-flow entries
+python3 - "$USCOPE_SETTINGS" <<'PYEOF'
+import json, sys
+path = sys.argv[1]
+with open(path, "w") as f:
+    json.dump({"hooks": {}}, f, indent=2)
+    f.write("\n")
+PYEOF
+
+# user settings: carries the wiring
+python3 - "$UHOME/.claude/settings.json" <<'PYEOF'
+import json, sys
+path = sys.argv[1]
+data = {"hooks": {"UserPromptSubmit": [{"matcher": "", "hooks": [
+    {"id": "memo-flow:context-monitor", "type": "command", "command": ".claude/memo-flow/hooks/context-monitor.sh"}
+]}]}}
+with open(path, "w") as f:
+    json.dump(data, f, indent=2)
+    f.write("\n")
+PYEOF
+
+out=$(HOME="$UHOME" MEMO_FLOW_CONFIG="$USCOPE_CFG" MEMO_FLOW_SETTINGS="$USCOPE_SETTINGS" "$CLI" status 2>/dev/null)
+echo "$out" | grep -q "NOT wired" \
+  && fail "user-scope wired hook falsely flagged NOT wired" "got: $out" \
+  || ok "user-scope wiring recognized (no false NOT wired)"
+
+# hook wired nowhere (neither scope) → still flagged, HOME override in place
+python3 - "$UHOME/.claude/settings.json" <<'PYEOF'
+import json, sys
+path = sys.argv[1]
+with open(path, "w") as f:
+    json.dump({"hooks": {}}, f, indent=2)
+    f.write("\n")
+PYEOF
+
+out=$(HOME="$UHOME" MEMO_FLOW_CONFIG="$USCOPE_CFG" MEMO_FLOW_SETTINGS="$USCOPE_SETTINGS" "$CLI" status 2>/dev/null)
+echo "$out" | grep -q "NOT wired" \
+  && ok "hook wired in neither scope still flagged" \
+  || fail "unwired hook not flagged with HOME override" "got: $out"
+
 echo ""
 echo "──────────────────────────────────────────"
 echo "PASS: $PASS  FAIL: $FAIL"
