@@ -10,13 +10,17 @@ One skill, three branches. On every invocation, detect install state first, then
 ## Step 1: Detect install state
 
 ```bash
-bash "$(find .claude/skills -name base-state.sh -path '*/memo-flow/*' 2>/dev/null | head -1)" \
+STATE_SH="$(find .claude/skills -name base-state.sh -path '*/memo-flow/*' 2>/dev/null | head -1)"
+[ -n "$STATE_SH" ] || STATE_SH=".claude/skills/memo-flow/modules/base-state.sh"
+bash "$STATE_SH" \
   detect \
   "$(pwd)/.claude/skills" \
   "$(pwd)/CLAUDE.md" \
   "$(pwd)/docs/agents" \
   "$(pwd)/.claude/memo-flow/bin/afk-cook"
 ```
+
+The `find` covers nonstandard install locations; the direct path is the standard install location, used when the substitution comes back empty. If neither resolves to a file on disk, treat the state as `not_installed`.
 
 Output is one of: `not_installed` | `fresh` | `healthy` | `broken_no_skills` | `broken_no_scaffold`
 
@@ -141,6 +145,7 @@ question: "Working directory: `{absolute-path}`. About to apply these changes:
   • docs/agents/domain.md (new)
   • .claude/memo-flow/bin/afk-cook ({install fresh or 'replacing existing shim'})
   • .claude/memo-flow/manifest.json (new)
+  • .worktreeinclude (ensure 3 entries so worktrees created by Claude Code keep skills/hooks)
   • ~/.claude/memo-flow/registry.json (append project)
   [• 5 triage labels on {owner}/{repo}   — only when tracker=GitHub + remote present]
 "
@@ -234,6 +239,29 @@ SKILL_DIR="$(find .claude/skills -maxdepth 1 -name memo-flow -type d | head -1)"
 On re-run with manifest entry present and fence content unchanged: no-op, do not re-write.
 On re-run with changed content: re-render the fence block, leave manifest and registry as-is.
 
+**Write the worktree include file.** Claude Code copies gitignored paths matching `.worktreeinclude` (gitignore syntax) into worktrees it creates. Without it, worktree sessions lose the skills and hooks that live under the gitignored `.claude/`.
+
+Ensure `<project-root>/.worktreeinclude` contains these three lines, appending only the ones that are missing (idempotent: never duplicate a line, never touch lines the user added):
+
+```
+.claude/skills/
+.claude/memo-flow/
+.claude/settings.json
+```
+
+Do not add a bare `.claude/` line — that would recursively copy `.claude/worktrees/`. Record each line in the manifest, mirroring the hooks-tier gitignore mutations (`append` is idempotent by id, so re-runs are no-ops):
+
+```bash
+"$SKILL_DIR/modules/manifest.sh" append .claude/memo-flow/manifest.json \
+  '{"id":"memo-flow:worktreeinclude-skills","kind":"gitignore_entry","target":".worktreeinclude","line":".claude/skills/","customized":false}'
+"$SKILL_DIR/modules/manifest.sh" append .claude/memo-flow/manifest.json \
+  '{"id":"memo-flow:worktreeinclude-memo-flow","kind":"gitignore_entry","target":".worktreeinclude","line":".claude/memo-flow/","customized":false}'
+"$SKILL_DIR/modules/manifest.sh" append .claude/memo-flow/manifest.json \
+  '{"id":"memo-flow:worktreeinclude-settings","kind":"gitignore_entry","target":".worktreeinclude","line":".claude/settings.json","customized":false}'
+```
+
+> Caveat: the copy happens at worktree creation only. A long-lived worktree holds a frozen snapshot — skills installed or updated afterwards never appear inside it until the worktree is re-created (or `.claude/` is re-copied by hand). Worktrees made with plain `git worktree add` outside Claude Code get nothing.
+
 **Install the AFK runner wrapper.**
 
 Write `<project-root>/.claude/memo-flow/bin/afk-cook` (create directory if needed):
@@ -286,6 +314,7 @@ Emit this block verbatim, substituting `{var}` placeholders:
 - Added `## Agent skills` block to `{CLAUDE.md or AGENTS.md}` (12 lines, fenced)
 - Created `docs/agents/{issue-tracker,triage-labels,domain}.md`
 - Installed AFK runner wrapper at `.claude/memo-flow/bin/afk-cook`
+- Ensured `.worktreeinclude` covers `.claude/` skills, hooks, and settings (worktrees created by Claude Code keep them; the copy is a snapshot taken at worktree creation)
 - Recorded install in `.claude/memo-flow/manifest.json` and `~/.claude/memo-flow/registry.json`
 [- Created 5 triage labels on `{owner}/{repo}`   — include only when tracker=GitHub + remote]
 

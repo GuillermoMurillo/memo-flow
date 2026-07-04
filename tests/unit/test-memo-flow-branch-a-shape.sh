@@ -22,10 +22,14 @@ FAIL=0
 ok()   { echo "  PASS: $1"; PASS=$((PASS + 1)); }
 fail() { echo "  FAIL: $1"; [ -n "${2:-}" ] && echo "        $2"; FAIL=$((FAIL + 1)); }
 
+# capture the Branch A section once: piping awk into grep -q under pipefail
+# is flaky (grep exits at first match, awk takes SIGPIPE → 141)
+branch_a_content="$(awk '/^## Branch A/,/^## Branch [^A]/' "$SKILL")"
+
 # helper: count occurrences of a pattern in Branch A section only
 branch_a_count() {
   local pattern="$1" count
-  count=$(awk '/^## Branch A/,/^## Branch [^A]/' "$SKILL" | grep -c "$pattern" 2>/dev/null) || count=0
+  count=$(grep -c "$pattern" 2>/dev/null <<<"$branch_a_content") || count=0
   echo "$count"
 }
 
@@ -93,14 +97,14 @@ fi
 
 # ── Branch A: batched interview sub-questions ────────────────────────────────
 
-if awk '/^## Branch A/,/^## Branch [^A]/' "$SKILL" | grep -q "3 sub-question\|three sub-question\|sub-questions.*tracker\|tracker.*triage.*domain"; then
+if grep -q "3 sub-question\|three sub-question\|sub-questions.*tracker\|tracker.*triage.*domain" <<<"$branch_a_content"; then
   ok "Branch A interview is batched with sub-questions"
 else
   fail "Branch A interview missing batched sub-question structure"
 fi
 
 # issue requires each sub-question names ≥2 skills that read this config
-if awk '/^## Branch A/,/^## Branch [^A]/' "$SKILL" | grep -qE "to-issues.*triage|triage.*to-issues"; then
+if grep -qE "to-issues.*triage|triage.*to-issues" <<<"$branch_a_content"; then
   ok "interview sub-question names skills that read the config"
 else
   fail "interview sub-question missing skill references (to-issues, triage)"
@@ -108,13 +112,13 @@ fi
 
 # ── Branch A: pre-flight gate ────────────────────────────────────────────────
 
-if awk '/^## Branch A/,/^## Branch [^A]/' "$SKILL" | grep -q "pre-flight\|pre-flight gate\|pre.flight"; then
+if grep -q "pre-flight\|pre-flight gate\|pre.flight" <<<"$branch_a_content"; then
   ok "Branch A has pre-flight gate"
 else
   fail "Branch A missing pre-flight gate"
 fi
 
-if awk '/^## Branch A/,/^## Branch [^A]/' "$SKILL" | grep -q "Apply\|Show.*content\|Cancel"; then
+if grep -q "Apply\|Show.*content\|Cancel" <<<"$branch_a_content"; then
   ok "pre-flight gate has Apply / Show content / Cancel options"
 else
   fail "pre-flight gate missing required options (Apply, Show content first, Cancel)"
@@ -122,7 +126,7 @@ fi
 
 # ── Branch A: structured summary ────────────────────────────────────────────
 
-if awk '/^## Branch A/,/^## Branch [^A]/' "$SKILL" | grep -q "Try this next\|structured summary\|What just changed"; then
+if grep -q "Try this next\|structured summary\|What just changed" <<<"$branch_a_content"; then
   ok "Branch A has structured summary with 'Try this next'"
 else
   fail "Branch A missing structured summary with 'Try this next' / 'What just changed'"
@@ -130,13 +134,13 @@ fi
 
 # ── Branch A: conditional handoff offer ──────────────────────────────────────
 
-if awk '/^## Branch A/,/^## Branch [^A]/' "$SKILL" | grep -q "available-but-not-installed"; then
+if grep -q "available-but-not-installed" <<<"$branch_a_content"; then
   ok "handoff offer is gated on available-but-not-installed"
 else
   fail "handoff offer missing available-but-not-installed guard"
 fi
 
-if awk '/^## Branch A/,/^## Branch [^A]/' "$SKILL" | grep -q 'Skill.*memo-hooks\|skill.*memo-hooks'; then
+if grep -q 'Skill.*memo-hooks\|skill.*memo-hooks' <<<"$branch_a_content"; then
   ok "handoff offer invokes Skill(skill=\"memo-hooks\")"
 else
   fail "handoff offer missing Skill invocation for memo-hooks"
@@ -146,14 +150,14 @@ fi
 
 branch_c_content="$(awk '/^## Branch C/,/^---$/' "$SKILL")"
 
-if echo "$branch_c_content" | grep -q "broken_no_skills\|broken_no_scaffold"; then
+if grep -q "broken_no_skills\|broken_no_scaffold" <<<"$branch_c_content"; then
   ok "Branch C covers both broken states"
 else
   fail "Branch C missing broken state prose"
 fi
 
 # C2 option descriptions should be prescriptive (not just "Re-run installer")
-if echo "$branch_c_content" | grep -q "Re-run\|re-run"; then
+if grep -q "Re-run\|re-run" <<<"$branch_c_content"; then
   ok "Branch C C2 has re-run option"
 else
   fail "Branch C C2 missing re-run option"

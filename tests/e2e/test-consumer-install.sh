@@ -203,7 +203,7 @@ except Exception as e:
   else
     fail \
       "manifest-schema mismatch: expected schema_version=1, got '$SV'" \
-      "$(cat "$MANIFEST_FILE" 2>/dev/null | head -5)"
+      "$(head -5 "$MANIFEST_FILE" 2>/dev/null)"
   fi
 
   # validate required top-level fields

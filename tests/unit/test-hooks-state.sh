@@ -187,6 +187,83 @@ result="$(bash "$STATE_SH" detect "$CONFIG" "$REGISTRY" "$OTHER_PATH" 2>/dev/nul
   && ok "works with arbitrary project path" \
   || fail "arbitrary project path" "got '$result'"
 
+# ── git worktrees: detection keys on the main repo root (#88) ────────────────
+
+echo ""
+echo "--- git worktrees ---"
+
+norm() { python3 -c "import os,sys; print(os.path.realpath(sys.argv[1]))" "$1"; }
+
+GIT_REPO="$WORK/mainrepo"
+GIT_WT="$WORK/wt"
+git init -q "$GIT_REPO"
+git -C "$GIT_REPO" -c user.email=t@example.com -c user.name=t \
+  commit -q --allow-empty -m init
+git -C "$GIT_REPO" worktree add "$GIT_WT" >/dev/null 2>&1
+
+# register the MAIN repo path with the hooks tier
+python3 -c "
+import json
+data = {'projects': [{'path': '$GIT_REPO', 'tiers': ['base', 'hooks'], 'last_updated': '2026-01-01T00:00:00Z'}]}
+with open('$REGISTRY', 'w') as f:
+    json.dump(data, f)
+    f.write('\n')
+"
+seed_config
+
+# detect from inside the linked worktree → healthy, not broken_no_registry
+result="$(bash "$STATE_SH" detect "$CONFIG" "$REGISTRY" "$GIT_WT" 2>/dev/null)"
+[[ "$result" == "healthy" ]] \
+  && ok "worktree of registered repo → healthy" \
+  || fail "worktree of registered repo" "got '$result'"
+
+# detect from the main repo → still healthy (no regression)
+result="$(bash "$STATE_SH" detect "$CONFIG" "$REGISTRY" "$GIT_REPO" 2>/dev/null)"
+[[ "$result" == "healthy" ]] \
+  && ok "main repo still healthy" \
+  || fail "main repo" "got '$result'"
+
+# registry entry stored realpath-normalized, detect via symlinked tmp path → healthy
+python3 -c "
+import json, os
+data = {'projects': [{'path': os.path.realpath('$GIT_REPO'), 'tiers': ['base', 'hooks'], 'last_updated': '2026-01-01T00:00:00Z'}]}
+with open('$REGISTRY', 'w') as f:
+    json.dump(data, f)
+    f.write('\n')
+"
+result="$(bash "$STATE_SH" detect "$CONFIG" "$REGISTRY" "$GIT_WT" 2>/dev/null)"
+[[ "$result" == "healthy" ]] \
+  && ok "realpath-normalized registry entry matches worktree" \
+  || fail "realpath-normalized entry" "got '$result'"
+
+# non-git dir registered literally → unchanged behavior
+NONGIT="$WORK/plain-project"
+mkdir -p "$NONGIT"
+python3 -c "
+import json
+data = {'projects': [{'path': '$NONGIT', 'tiers': ['base', 'hooks'], 'last_updated': '2026-01-01T00:00:00Z'}]}
+with open('$REGISTRY', 'w') as f:
+    json.dump(data, f)
+    f.write('\n')
+"
+result="$(bash "$STATE_SH" detect "$CONFIG" "$REGISTRY" "$NONGIT" 2>/dev/null)"
+[[ "$result" == "healthy" ]] \
+  && ok "non-git dir → unchanged (healthy)" \
+  || fail "non-git dir" "got '$result'"
+
+# non-git dir NOT registered → still broken_no_registry
+python3 -c "
+import json
+data = {'projects': []}
+with open('$REGISTRY', 'w') as f:
+    json.dump(data, f)
+    f.write('\n')
+"
+result="$(bash "$STATE_SH" detect "$CONFIG" "$REGISTRY" "$NONGIT" 2>/dev/null)"
+[[ "$result" == "broken_no_registry" ]] \
+  && ok "unregistered non-git dir → still broken_no_registry" \
+  || fail "unregistered non-git dir" "got '$result'"
+
 # ── audit: schema checks on settings.json ────────────────────────────────────
 
 echo ""
@@ -234,7 +311,8 @@ entry_count=$(python3 -c "import json,sys; print(len(json.loads(sys.argv[1])))" 
 [[ "$entry_count" -eq 1 ]] \
   && ok "type=stdin → one finding" \
   || fail "type=stdin" "got $entry_count findings: $result"
-echo "$result" | python3 -c "import json,sys; f=json.load(sys.stdin); print(f[0]['entry'])" | grep -q "memo-flow:context-monitor" \
+finding_entry="$(python3 -c "import json,sys; f=json.load(sys.stdin); print(f[0]['entry'])" <<<"$result")"
+grep -q "memo-flow:context-monitor" <<<"$finding_entry" \
   && ok "finding names the offending entry" \
   || fail "finding entry wrong" "got $result"
 
@@ -281,6 +359,122 @@ entry_count=$(python3 -c "import json,sys; print(len(json.loads(sys.argv[1])))" 
 [[ "$entry_count" -eq 1 ]] \
   && ok "mixed entries: only broken one reported" \
   || fail "mixed entries" "got $entry_count findings: $result"
+
+# ── wiring: detect cross-checks enabled hooks against runtime (#82) ──────────
+
+echo ""
+echo "--- wiring (detect with settings file) ---"
+
+WPROJ="$WORK/wired-project"
+WCONFIG="$WPROJ/.claude/memo-flow/config.json"
+WSETTINGS="$WPROJ/.claude/settings.json"
+mkdir -p "$WPROJ/.claude/memo-flow/hooks"
+
+# registry lists the project with hooks tier
+python3 -c "
+import json
+data = {'projects': [{'path': '$WPROJ', 'tiers': ['base', 'hooks'], 'last_updated': '2026-01-01T00:00:00Z'}]}
+with open('$REGISTRY', 'w') as f:
+    json.dump(data, f)
+    f.write('\n')
+"
+
+# config: context-monitor enabled
+python3 -c "
+import json
+data = {'context-monitor': {'enabled': True, 'threshold': 130000, 'mode': 'notify'}}
+with open('$WCONFIG', 'w') as f:
+    json.dump(data, f)
+    f.write('\n')
+"
+
+# settings: no memo-flow entries at all
+python3 -c "
+import json
+with open('$WSETTINGS', 'w') as f:
+    json.dump({'hooks': {}}, f)
+    f.write('\n')
+"
+
+# enabled hook, script missing, settings entry missing → broken_unwired
+result="$(bash "$STATE_SH" detect "$WCONFIG" "$REGISTRY" "$WPROJ" "$WSETTINGS" 2>/dev/null)"
+[[ "$result" == "broken_unwired" ]] \
+  && ok "enabled hook with no script and no settings entry → broken_unwired" \
+  || fail "unwired enabled hook" "got '$result'"
+
+# script on disk but settings entry still missing → broken_unwired
+echo "#!/bin/bash" > "$WPROJ/.claude/memo-flow/hooks/context-monitor.sh"
+result="$(bash "$STATE_SH" detect "$WCONFIG" "$REGISTRY" "$WPROJ" "$WSETTINGS" 2>/dev/null)"
+[[ "$result" == "broken_unwired" ]] \
+  && ok "script on disk, no settings entry → broken_unwired" \
+  || fail "script only" "got '$result'"
+
+# script on disk + settings entry present → healthy
+python3 -c "
+import json
+data = {'hooks': {'UserPromptSubmit': [{'matcher': '', 'hooks': [
+    {'id': 'memo-flow:context-monitor', 'type': 'command', 'command': '.claude/memo-flow/hooks/context-monitor.sh'}
+]}]}}
+with open('$WSETTINGS', 'w') as f:
+    json.dump(data, f)
+    f.write('\n')
+"
+result="$(bash "$STATE_SH" detect "$WCONFIG" "$REGISTRY" "$WPROJ" "$WSETTINGS" 2>/dev/null)"
+[[ "$result" == "healthy" ]] \
+  && ok "script + settings entry → healthy" \
+  || fail "fully wired" "got '$result'"
+
+# disabled hook missing everything → still healthy (opt-out is not drift)
+python3 -c "
+import json
+data = {
+  'context-monitor': {'enabled': True, 'threshold': 130000, 'mode': 'notify'},
+  'handoff-clipboard': {'enabled': False}
+}
+with open('$WCONFIG', 'w') as f:
+    json.dump(data, f)
+    f.write('\n')
+"
+result="$(bash "$STATE_SH" detect "$WCONFIG" "$REGISTRY" "$WPROJ" "$WSETTINGS" 2>/dev/null)"
+[[ "$result" == "healthy" ]] \
+  && ok "disabled unwired hook → still healthy" \
+  || fail "disabled unwired hook" "got '$result'"
+
+# entry wired at a second settings file (user scope) counts as wired
+python3 -c "
+import json
+with open('$WSETTINGS', 'w') as f:
+    json.dump({'hooks': {}}, f)
+    f.write('\n')
+"
+USER_SETTINGS="$WORK/user-settings.json"
+python3 -c "
+import json
+data = {'hooks': {'UserPromptSubmit': [{'matcher': '', 'hooks': [
+    {'id': 'memo-flow:context-monitor', 'type': 'command', 'command': '.claude/memo-flow/hooks/context-monitor.sh'}
+]}]}}
+with open('$USER_SETTINGS', 'w') as f:
+    json.dump(data, f)
+    f.write('\n')
+"
+result="$(bash "$STATE_SH" detect "$WCONFIG" "$REGISTRY" "$WPROJ" "$WSETTINGS" "$USER_SETTINGS" 2>/dev/null)"
+[[ "$result" == "healthy" ]] \
+  && ok "entry in second (user-scope) settings file → healthy" \
+  || fail "user-scope settings" "got '$result'"
+
+# legacy arity: no settings file argument → wiring check skipped (healthy)
+python3 -c "
+import json
+data = {'context-monitor': {'enabled': True, 'threshold': 130000, 'mode': 'notify'}}
+with open('$WCONFIG', 'w') as f:
+    json.dump(data, f)
+    f.write('\n')
+"
+rm -f "$WPROJ/.claude/memo-flow/hooks/context-monitor.sh"
+result="$(bash "$STATE_SH" detect "$WCONFIG" "$REGISTRY" "$WPROJ" 2>/dev/null)"
+[[ "$result" == "healthy" ]] \
+  && ok "no settings arg → legacy behavior (healthy)" \
+  || fail "legacy arity" "got '$result'"
 
 echo ""
 echo "──────────────────────────────────────────"

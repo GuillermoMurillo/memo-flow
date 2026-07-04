@@ -20,10 +20,9 @@ FAIL=0
 ok()   { echo "  PASS: $1"; PASS=$((PASS + 1)); }
 fail() { echo "  FAIL: $1"; [ -n "${2:-}" ] && echo "        $2"; FAIL=$((FAIL + 1)); }
 
-# helper: content of Branch A only
-branch_a() {
-  awk '/^## Branch A/,/^## Branch [^A]/' "$SKILL"
-}
+# capture the Branch A section once: piping awk into grep -q under pipefail
+# is flaky (grep exits at first match, awk takes SIGPIPE → 141)
+branch_a_content="$(awk '/^## Branch A/,/^## Branch [^A]/' "$SKILL")"
 
 # ── narrative beat (A1) ──────────────────────────────────────────────────────
 
@@ -31,7 +30,7 @@ branch_a() {
 # (Prior version required a literal "0003" ADR reference; 9aa262b scrubbed
 # the ADR jargon from user-facing prose. The semantic check below is the
 # load-bearing one — the narrative must still explain why there's no gate.)
-if branch_a | grep -qi "inert\|gate skipped\|no.*gate\|skip.*gate"; then
+if grep -qi "inert\|gate skipped\|no.*gate\|skip.*gate" <<<"$branch_a_content"; then
   ok "narrative beat names the gate-skipped asymmetry"
 else
   fail "narrative beat missing gate-skipped/inert explanation"
@@ -39,7 +38,7 @@ fi
 
 # A1 must NOT contain an AskUserQuestion invocation (call site: "One `AskUserQuestion`")
 a1_section="$(awk '/^### A1/,/^### A[2-9]/' "$SKILL")"
-if echo "$a1_section" | grep -q "^One \`AskUserQuestion\`"; then
+if grep -q "^One \`AskUserQuestion\`" <<<"$a1_section"; then
   fail "A1 narrative beat must not invoke AskUserQuestion"
 else
   ok "A1 narrative beat contains no AskUserQuestion invocation"
@@ -47,7 +46,7 @@ fi
 
 # ── AskUserQuestion count in Branch A ───────────────────────────────────────
 
-ask_count="$(branch_a | grep -c "^One \`AskUserQuestion\`" 2>/dev/null)" || ask_count=0
+ask_count="$(grep -c "^One \`AskUserQuestion\`" 2>/dev/null <<<"$branch_a_content")" || ask_count=0
 
 if [ "$ask_count" -eq 1 ]; then
   ok "Branch A has exactly 1 AskUserQuestion invocation"
@@ -57,13 +56,13 @@ fi
 
 # ── batched form: 2 sub-questions ───────────────────────────────────────────
 
-if branch_a | grep -qE "2 sub-question|two sub-question|sub-question.*1|Sub-question 1"; then
+if grep -qE "2 sub-question|two sub-question|sub-question.*1|Sub-question 1" <<<"$branch_a_content"; then
   ok "batched form has sub-question structure"
 else
   fail "batched form missing sub-question structure (Sub-question 1 / 2)"
 fi
 
-if branch_a | grep -qE "Sub-question 2|sub-question.*2.*mode|mode.*sub-question"; then
+if grep -qE "Sub-question 2|sub-question.*2.*mode|mode.*sub-question" <<<"$branch_a_content"; then
   ok "sub-question 2 (mode) is present"
 else
   fail "sub-question 2 (mode) missing"
@@ -71,7 +70,7 @@ fi
 
 # ── mode sub-question is always asked ───────────────────────────────────────
 
-if branch_a | grep -qi "always.asked\|always asked\|even if.*context-monitor\|regardless"; then
+if grep -qi "always.asked\|always asked\|even if.*context-monitor\|regardless" <<<"$branch_a_content"; then
   ok "mode sub-question is always-asked (unconditional)"
 else
   fail "mode sub-question missing always-asked annotation"
@@ -80,13 +79,13 @@ fi
 # ── apply phase: unconditional mode set ─────────────────────────────────────
 
 a4_section="$(awk '/^### A4/,/^### A[5-9]/' "$SKILL")"
-if echo "$a4_section" | grep -q "context-monitor.mode"; then
+if grep -q "context-monitor.mode" <<<"$a4_section"; then
   ok "A4 sets context-monitor.mode"
 else
   fail "A4 missing --set context-monitor.mode"
 fi
 
-if echo "$a4_section" | grep -qi "unconditional\|always\|even if.*disabled\|even when.*disabled"; then
+if grep -qi "unconditional\|always\|even if.*disabled\|even when.*disabled" <<<"$a4_section"; then
   ok "A4 applies mode unconditionally"
 else
   fail "A4 mode set not marked unconditional"
@@ -94,31 +93,31 @@ fi
 
 # ── structured summary (A5) ─────────────────────────────────────────────────
 
-if branch_a | grep -q "\*\*Done\.\*\*"; then
+if grep -q "\*\*Done\.\*\*" <<<"$branch_a_content"; then
   ok "summary has bold 'Done.' header"
 else
   fail "summary missing bold 'Done.' header"
 fi
 
-if branch_a | grep -q "\*\*What just changed:\*\*"; then
+if grep -q "\*\*What just changed:\*\*" <<<"$branch_a_content"; then
   ok "summary has 'What just changed:' section"
 else
   fail "summary missing 'What just changed:' section"
 fi
 
-if branch_a | grep -q "\*\*Try this next:\*\*"; then
+if grep -q "\*\*Try this next:\*\*" <<<"$branch_a_content"; then
   ok "summary has 'Try this next:' section"
 else
   fail "summary missing 'Try this next:' section"
 fi
 
-if branch_a | grep -q "\*\*Where to learn more:\*\*"; then
+if grep -q "\*\*Where to learn more:\*\*" <<<"$branch_a_content"; then
   ok "summary has 'Where to learn more:' section"
 else
   fail "summary missing 'Where to learn more:' section"
 fi
 
-if branch_a | grep -qi "Re-run.*\`/memo-hooks\`\|re-run.*memo-hooks"; then
+if grep -qi "Re-run.*\`/memo-hooks\`\|re-run.*memo-hooks" <<<"$branch_a_content"; then
   ok "summary has re-run hint"
 else
   fail "summary missing re-run hint"

@@ -45,6 +45,16 @@ case "$cmd" in
       echo "usage: user-registry.sh insert <file> <project-path> <tiers-json>" >&2
       exit 1
     fi
+    # Writers resolve worktrees the same way get does (#88): insert called
+    # with a worktree path of an already-registered repo must upsert the
+    # main-repo entry, not append a throwaway worktree-path entry.
+    MODULE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    main_root="$proj_path"
+    if [ -f "$MODULE_DIR/worktree-root.sh" ]; then
+      main_root="$(bash "$MODULE_DIR/worktree-root.sh" resolve "$proj_path" 2>/dev/null)" \
+        || main_root="$proj_path"
+      [ -n "$main_root" ] || main_root="$proj_path"
+    fi
     dir="$(dirname "$file")"
     mkdir -p "$dir"
     tmpfile="$(mktemp "$dir/.registry-tmp-XXXXXX.json")"
@@ -52,8 +62,7 @@ case "$cmd" in
 import json, os, sys
 from datetime import datetime, timezone
 
-file = '$file'
-proj_path = '$proj_path'
+file, proj_path, main_root, tmpfile = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
 tiers = json.loads('''$tiers_json''')
 now = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
 
@@ -67,19 +76,43 @@ else:
 
 data.setdefault('projects', [])
 
-# upsert: remove existing entry for this path, then append
-data['projects'] = [p for p in data['projects'] if p.get('path') != proj_path]
-data['projects'].append({
-    'path': proj_path,
-    'tiers': tiers,
-    'last_updated': now
-})
+def _norm(p):
+    try:
+        return os.path.realpath(p)
+    except Exception:
+        return p
 
-with open('$tmpfile', 'w') as f:
+# literal project path wins over the resolved main root, matching get
+candidates = [_norm(proj_path)]
+if _norm(main_root) not in candidates:
+    candidates.append(_norm(main_root))
+
+# upsert: update a matching entry in place (keeps its stored path — a
+# worktree upsert lands on the main-repo entry), else append literally
+matched = None
+for cand in candidates:
+    for p in data['projects']:
+        if _norm(p.get('path', '')) == cand:
+            matched = p
+            break
+    if matched is not None:
+        break
+
+if matched is not None:
+    matched['tiers'] = tiers
+    matched['last_updated'] = now
+else:
+    data['projects'].append({
+        'path': proj_path,
+        'tiers': tiers,
+        'last_updated': now
+    })
+
+with open(tmpfile, 'w') as f:
     json.dump(data, f, indent=2)
     f.write('\n')
-os.rename('$tmpfile', file)
-" || { rm -f "$tmpfile"; exit 1; }
+os.rename(tmpfile, file)
+" "$file" "$proj_path" "$main_root" "$tmpfile" || { rm -f "$tmpfile"; exit 1; }
     ;;
 
   update-tiers)
@@ -94,14 +127,26 @@ os.rename('$tmpfile', file)
       echo "user-registry: file not found: $file" >&2
       exit 1
     fi
+    # Writers resolve worktrees the same way get does (#88): update-tiers
+    # called with a worktree path must hit the registered main-repo entry,
+    # not silently no-op on a literal-path mismatch.
+    MODULE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    main_root="$proj_path"
+    if [ -f "$MODULE_DIR/worktree-root.sh" ]; then
+      main_root="$(bash "$MODULE_DIR/worktree-root.sh" resolve "$proj_path" 2>/dev/null)" \
+        || main_root="$proj_path"
+      [ -n "$main_root" ] || main_root="$proj_path"
+    fi
     dir="$(dirname "$file")"
     tmpfile="$(mktemp "$dir/.registry-tmp-XXXXXX.json")"
     python3 -c "
 import json, os, sys
 from datetime import datetime, timezone
 
+file, proj_path, main_root, tmpfile = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
+
 try:
-    data = json.load(open('$file'))
+    data = json.load(open(file))
 except Exception as e:
     print(f'user-registry: invalid JSON: {e}', file=sys.stderr)
     sys.exit(1)
@@ -109,22 +154,36 @@ except Exception as e:
 tiers = json.loads('''$tiers_json''')
 now = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
 
+def _norm(p):
+    try:
+        return os.path.realpath(p)
+    except Exception:
+        return p
+
+# literal project path wins over the resolved main root, matching get
+candidates = [_norm(proj_path)]
+if _norm(main_root) not in candidates:
+    candidates.append(_norm(main_root))
+
 found = False
-for p in data.get('projects', []):
-    if p.get('path') == '$proj_path':
-        p['tiers'] = tiers
-        p['last_updated'] = now
-        found = True
+for cand in candidates:
+    for p in data.get('projects', []):
+        if _norm(p.get('path', '')) == cand:
+            p['tiers'] = tiers
+            p['last_updated'] = now
+            found = True
+            break
+    if found:
         break
 
 if not found:
     sys.exit(0)  # no-op
 
-with open('$tmpfile', 'w') as f:
+with open(tmpfile, 'w') as f:
     json.dump(data, f, indent=2)
     f.write('\n')
-os.rename('$tmpfile', '$file')
-" || { rm -f "$tmpfile"; exit 1; }
+os.rename(tmpfile, file)
+" "$file" "$proj_path" "$main_root" "$tmpfile" || { rm -f "$tmpfile"; exit 1; }
     ;;
 
   remove)
@@ -173,21 +232,47 @@ os.rename('$tmpfile', '$file')
       echo ""
       exit 0
     fi
+    # A linked git worktree shares its install with the main repo, but the
+    # registry keys on the main-repo path. Resolve through worktree-root.sh
+    # so lookups from inside a worktree find the registered project (#88).
+    MODULE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    main_root="$proj_path"
+    if [ -f "$MODULE_DIR/worktree-root.sh" ]; then
+      main_root="$(bash "$MODULE_DIR/worktree-root.sh" resolve "$proj_path" 2>/dev/null)" \
+        || main_root="$proj_path"
+      [ -n "$main_root" ] || main_root="$proj_path"
+    fi
     python3 -c "
-import json, sys
+import json, os, sys
+
+file, proj_path, main_root = sys.argv[1], sys.argv[2], sys.argv[3]
 
 try:
-    data = json.load(open('$file'))
+    data = json.load(open(file))
 except Exception as e:
     print(f'user-registry: invalid JSON: {e}', file=sys.stderr)
     sys.exit(1)
 
-matches = [p for p in data.get('projects', []) if p.get('path') == '$proj_path']
-if matches:
-    print(json.dumps(matches[0], indent=2))
-else:
-    print('')
-"
+def _norm(p):
+    try:
+        return os.path.realpath(p)
+    except Exception:
+        return p
+
+# literal project path wins over the resolved main root, so a registry that
+# (wrongly) holds a worktree-path entry still returns that exact entry
+candidates = [_norm(proj_path)]
+if _norm(main_root) not in candidates:
+    candidates.append(_norm(main_root))
+
+projects = data.get('projects', [])
+for cand in candidates:
+    matches = [p for p in projects if _norm(p.get('path', '')) == cand]
+    if matches:
+        print(json.dumps(matches[0], indent=2))
+        sys.exit(0)
+print('')
+" "$file" "$proj_path" "$main_root"
     ;;
 
   prune-missing)

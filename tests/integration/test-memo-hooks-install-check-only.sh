@@ -106,6 +106,28 @@ else
   fail "expected a status line in stdout/stderr" "$(cat "$OUTPUT_FILE")"
 fi
 
+# ── assert: user-facing command name is /memo-hooks (#71) ────────────────────
+# The unified entry point users invoke is /memo-hooks; /install-memo-hooks is
+# not a slash command and must not appear in output or source.
+
+echo ""
+echo "--- user-facing command name ---"
+if grep -qF '/install-memo-hooks' "$OUTPUT_FILE"; then
+  fail "output references /install-memo-hooks (should be /memo-hooks)" \
+    "$(grep -F '/install-memo-hooks' "$OUTPUT_FILE")"
+else
+  ok "output free of /install-memo-hooks"
+fi
+
+if grep -qF '/install-memo-hooks' "$ENTRY_SH"; then
+  # capture before trimming: grep | head under pipefail risks SIGPIPE → 141
+  refs="$(grep -nF '/install-memo-hooks' "$ENTRY_SH")"
+  fail "install.sh source references /install-memo-hooks (should be /memo-hooks)" \
+    "$(head -3 <<<"$refs")"
+else
+  ok "install.sh source free of /install-memo-hooks"
+fi
+
 # ── summary ───────────────────────────────────────────────────────────────────
 
 echo ""

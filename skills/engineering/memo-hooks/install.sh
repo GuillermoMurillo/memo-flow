@@ -28,7 +28,12 @@
 #   - Adds settings.json entries via settings-mutator
 #   - Updates manifest with per-mutation source_checksum
 #   - Updates user registry tier from ["base"] to ["base","hooks"]
-#   - Idempotent: re-run at same scope is a no-op
+#   - Idempotent: re-run at same scope is a no-op when nothing drifted.
+#     Re-runs reconcile against the bundle's full hook set and the actual
+#     runtime state (script on disk + settings.json entry), not the
+#     manifest — so hooks added to the bundle after first install, and
+#     wiring lost since, are restored (#82). Repairs never touch
+#     config.json: enabled/disabled choices survive.
 
 set -euo pipefail
 
@@ -153,6 +158,27 @@ fi
 
 "$MANIFEST_SH" validate "$MANIFEST" 2>&1 || exit 1
 
+# ── manifest migrations ───────────────────────────────────────────────────────
+# Migrations run on every non-check-only install pass, before any work-gating
+# early-exit below. Gating them behind drift/broken/missing detection means a
+# clean upgrade (nothing else to do) never migrates (issue #67). Each migration
+# is idempotent, so re-runs are no-ops. --check-only must never write, so the
+# whole preamble is skipped under that flag. Future migrations go here too.
+#
+# Migration (issue #65): existing installs may have registered config.json as
+# file_written, which causes the drift detector to report it as drifted-edited
+# on every run. Rewrite to user_config so it is no longer tracked for drift.
+#
+# Scope audit (issue #65): config.json is the only user-mutable defaults file
+# emitted by the memo-flow tier today. The base tier emits doc_block (fenced
+# region in CLAUDE.md / AGENTS.md) and seeds docs/agents/*.md from templates
+# without adding them to the manifest. Neither passes through the file_written
+# drift loop, so no further migration is needed.
+
+if [ "$CHECK_ONLY" != true ]; then
+  "$MANIFEST_SH" migrate-kind "$MANIFEST" "memo-flow:hook-config" "user_config"
+fi
+
 # ── helpers ───────────────────────────────────────────────────────────────────
 
 sha256_file() {
@@ -216,24 +242,20 @@ WRAPPER_EOF
 
 # ── per-hook metadata ─────────────────────────────────────────────────────────
 
+# Per-hook defaults live in one place: hook-config.sh's install-defaults
+# registry (queried via default-config). Fallback covers bundle hooks not
+# yet declared there, preserving the old catch-all behavior.
 _hook_defaults() {
   local hook="$1"
-  case "$hook" in
-    context-monitor)   echo '{"enabled":false,"threshold":130000,"mode":"notify"}' ;;
-    skill-leaderboard) echo '{"enabled":false,"output_file":"~/.claude/memo-flow/skill-usage.json"}' ;;
-    handoff-clipboard) echo '{"enabled":false}' ;;
-    *)                 echo '{"enabled":false}' ;;
-  esac
+  "$HOOK_CONFIG_SH" default-config "$hook" 2>/dev/null || echo '{"enabled":false}'
 }
 
+# Hook → lifecycle event lives in hook-config.sh (queried via event), the
+# single source shared with bin/memo-hooks status (#74). Fallback covers
+# bundle hooks not yet declared there, preserving the old catch-all.
 _hook_event() {
   local hook="$1"
-  case "$hook" in
-    context-monitor)   echo "UserPromptSubmit" ;;
-    skill-leaderboard) echo "PostToolUse" ;;
-    handoff-clipboard) echo "PostToolUse" ;;
-    *)                 echo "PostToolUse" ;;
-  esac
+  "$HOOK_CONFIG_SH" event "$hook" 2>/dev/null || echo "PostToolUse"
 }
 
 # Returns JSON array of hook filenames (*.sh) present in the bundle but
@@ -259,6 +281,67 @@ for hook_file in sorted(bundle):
 
 print(json.dumps(missing))
 " 2>/dev/null || echo "[]"
+}
+
+# Returns JSON array of hook filenames whose script IS installed but whose
+# settings.json entry is gone — wired-state drift the manifest can't see (#82).
+# Disjoint from _get_missing_hooks: script-absent hooks go through the missing
+# path, which re-adds the settings entry itself.
+_get_unwired_hooks() {
+  local installed_dir="$1"
+  python3 -c "
+import json, os
+
+hooks_src = '$HOOKS_SRC'
+installed_dir = '$installed_dir'
+settings_file = '$SETTINGS_JSON'
+
+ids = set()
+if os.path.isfile(settings_file):
+    try:
+        data = json.load(open(settings_file))
+        for event_groups in data.get('hooks', {}).values():
+            for group in event_groups:
+                for h in group.get('hooks', []):
+                    ids.add(h.get('id', ''))
+    except Exception:
+        pass
+
+unwired = []
+if os.path.isdir(hooks_src):
+    for f in sorted(os.listdir(hooks_src)):
+        if not f.endswith('.sh'):
+            continue
+        if not os.path.isfile(os.path.join(installed_dir, f)):
+            continue
+        if 'memo-flow:' + f[:-3] not in ids:
+            unwired.append(f)
+
+print(json.dumps(unwired))
+" 2>/dev/null || echo "[]"
+}
+
+# Appends a settings_entry manifest record unless one already exists for the
+# hook_id — initial-install records use legacy ids (settings-skill-*), so the
+# dedupe key is hook_id, which is also what uninstall removes by.
+_manifest_record_settings_entry() {
+  local hook_stem="$1"
+  local hook_id="memo-flow:${hook_stem}"
+  local exists
+  exists=$(python3 -c "
+import json
+try:
+    data = json.load(open('$MANIFEST'))
+except Exception:
+    print('no'); raise SystemExit
+found = any(m.get('kind') == 'settings_entry' and m.get('hook_id') == '$hook_id'
+            for m in data.get('mutations', []))
+print('yes' if found else 'no')
+" 2>/dev/null || echo "no")
+  if [ "$exists" = "no" ]; then
+    "$MANIFEST_SH" append "$MANIFEST" \
+      "{\"id\":\"memo-flow:settings-${hook_stem}\",\"kind\":\"settings_entry\",\"target\":\"${settings_rel}\",\"hook_id\":\"${hook_id}\",\"scope\":\"${SCOPE}\",\"customized\":false}"
+  fi
 }
 
 # ── re-run detection + drift check ───────────────────────────────────────────
@@ -444,20 +527,26 @@ if [ "$(_has_hook_mutations)" = "yes" ]; then
   missing_json=$(_get_missing_hooks "$hooks_dir")
   missing_count=$(python3 -c "import json,sys; print(len(json.loads(sys.argv[1])))" "$missing_json")
 
-  if [ "$drifted_count" -eq 0 ] && [ "$broken_count" -eq 0 ] && [ "$missing_count" -eq 0 ]; then
+  unwired_json=$(_get_unwired_hooks "$hooks_dir")
+  unwired_count=$(python3 -c "import json,sys; print(len(json.loads(sys.argv[1])))" "$unwired_json")
+
+  if [ "$drifted_count" -eq 0 ] && [ "$broken_count" -eq 0 ] && [ "$missing_count" -eq 0 ] && [ "$unwired_count" -eq 0 ]; then
     echo "install-memo-hooks: all hooks up to date"
     exit 0
   fi
 
   if [ "$CHECK_ONLY" = true ]; then
     if [ "$broken_count" -gt 0 ]; then
-      echo "install-memo-hooks: WARNING — $broken_count memo-flow settings entries have type=stdin (broken); re-run /install-memo-hooks to repair"
+      echo "install-memo-hooks: WARNING — $broken_count memo-flow settings entries have type=stdin (broken); re-run /memo-hooks to repair"
     fi
     if [ "$drifted_count" -gt 0 ]; then
-      echo "install-memo-hooks: $drifted_count hook(s) have updates pending — run /install-memo-hooks to review"
+      echo "install-memo-hooks: $drifted_count hook(s) have updates pending — run /memo-hooks to review"
     fi
     if [ "$missing_count" -gt 0 ]; then
-      echo "install-memo-hooks: $missing_count new hook(s) available — run /install-memo-hooks to add"
+      echo "install-memo-hooks: $missing_count new hook(s) available — run /memo-hooks to add"
+    fi
+    if [ "$unwired_count" -gt 0 ]; then
+      echo "install-memo-hooks: $unwired_count hook(s) missing their settings.json entry — run /memo-hooks to repair"
     fi
     exit 0
   fi
@@ -493,13 +582,32 @@ if [ "$(_has_hook_mutations)" = "yes" ]; then
     done
   fi
 
+  # rewire hooks whose script survived but whose settings entry is gone.
+  # Repair, not install: config.json is untouched, so enabled stays whatever
+  # the user chose (#82; consent semantics per #68 are preserved — the entry
+  # being re-added was already consented to at install time).
+  if [ "$unwired_count" -gt 0 ]; then
+    for i in $(python3 -c "import sys; print(' '.join(str(x) for x in range($unwired_count)))"); do
+      hook_file=$(python3 -c "import json,sys; print(json.loads(sys.argv[1])[$i])" "$unwired_json")
+      hook_stem="${hook_file%.sh}"
+
+      event=$(_hook_event "$hook_stem")
+      hook_id="memo-flow:${hook_stem}"
+      hook_entry="{\"id\":\"${hook_id}\",\"command\":\".claude/memo-flow/hooks/${hook_file}\",\"type\":\"command\"}"
+      "$SETTINGS_SH" insert "$SETTINGS_JSON" "$event" "" "$hook_entry"
+      _manifest_record_settings_entry "$hook_stem"
+
+      echo "install-memo-hooks: rewired settings entry: $hook_stem"
+    done
+  fi
+
   if [ "$NON_INTERACTIVE" = true ]; then
     if [ "$broken_count" -gt 0 ]; then
       repaired=$(_repair_broken_settings_entries)
       echo "install-memo-hooks: repaired $repaired settings entries (type=stdin → type=command)"
     fi
     if [ "$drifted_count" -gt 0 ]; then
-      echo "install-memo-hooks: $drifted_count hook(s) have updates pending — run /install-memo-hooks to review"
+      echo "install-memo-hooks: $drifted_count hook(s) have updates pending — run /memo-hooks to review"
     fi
     exit 0
   fi
@@ -548,7 +656,7 @@ fi
 
 if [ "$CHECK_ONLY" = true ]; then
   hook_count=$(ls "$HOOKS_SRC"/*.sh 2>/dev/null | wc -l | tr -d ' ')
-  echo "install-memo-hooks: no install detected — $hook_count hook(s) available, run /install-memo-hooks to set up"
+  echo "install-memo-hooks: no install detected — $hook_count hook(s) available, run /memo-hooks to set up"
   exit 0
 fi
 
@@ -602,17 +710,6 @@ if [ "$FRESH_CONFIG" = "1" ]; then
   manifest_append_if_absent "$MANIFEST" \
     "{\"id\":\"memo-flow:hook-config\",\"kind\":\"user_config\",\"target\":\".claude/memo-flow/config.json\",\"customized\":false}"
 fi
-
-# Migration: existing installs may have registered config.json as file_written,
-# which causes the drift detector to report it as drifted-edited on every run.
-# Rewrite to user_config so it is no longer tracked for drift.
-#
-# Scope audit (issue #65): config.json is the only user-mutable defaults file
-# emitted by the memo-flow tier today. The base tier emits doc_block (fenced
-# region in CLAUDE.md / AGENTS.md) and seeds docs/agents/*.md from templates
-# without adding them to the manifest. Neither passes through the file_written
-# drift loop, so no further migration is needed.
-"$MANIFEST_SH" migrate-kind "$MANIFEST" "memo-flow:hook-config" "user_config"
 
 # ── add gitignore entries ─────────────────────────────────────────────────────
 

@@ -1,0 +1,7 @@
+# gitignored files Claude Code copies into worktrees it creates.
+# gitignore syntax. Deliberately not the whole .claude/ — that would
+# recursively copy .claude/worktrees/. Copy happens at worktree creation
+# only; plain `git worktree add` gets nothing.
+.claude/skills/
+.claude/memo-flow/
+.claude/settings.json

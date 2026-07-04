@@ -87,6 +87,15 @@ Helps with documents.
 
 The bad example gives your agent no way to distinguish this from other document skills.
 
+## AskUserQuestion Options
+
+When a skill drives `AskUserQuestion`, keep the two fields distinct:
+
+- `label`: the short chip text the user clicks. 1-5 words.
+- `description`: a 1-2 sentence explanation of what picking the option means.
+
+Long prose in `label` renders as an unreadable chip; it belongs in `description`.
+
 ## When to Add Scripts
 
 Add utility scripts when:

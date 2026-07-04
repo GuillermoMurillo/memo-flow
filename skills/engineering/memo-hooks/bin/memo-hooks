@@ -248,15 +248,8 @@ _tui_editor() {
 # fall through to an "Other" bucket at the end.
 _LIFECYCLE_ORDER="SessionStart UserPromptSubmit PreToolUse PostToolUse Notification PreCompact Stop SubagentStop SessionEnd"
 
-# Static mapping: hook name → Claude Code event.
-# Update when a new hook is added to the bundle.
-_hook_event() {
-  case "$1" in
-    context-monitor)   echo "UserPromptSubmit" ;;
-    skill-leaderboard) echo "PostToolUse" ;;
-    *)                 echo "Other" ;;
-  esac
-}
+# Hook → event mapping lives in hook-config.sh (queried via events), the
+# single source shared with install.sh (#74).
 
 cmd_repair_settings() {
   if [ ! -f "$SETTINGS_FILE" ]; then
@@ -298,13 +291,21 @@ PYEOF
 }
 
 cmd_status() {
-  local config_json
+  local config_json hooks_dir events_json
   config_json=$("$HOOK_CONFIG_SH" get-all "$CONFIG_FILE")
+  hooks_dir="$(dirname "$CONFIG_FILE")/hooks"
+  events_json=$("$HOOK_CONFIG_SH" events 2>/dev/null || echo '{}')
 
-  python3 - "$config_json" "$_LIFECYCLE_ORDER" <<'PYEOF'
-import json, sys
+  # wiring lives in the settings file of whichever scope install.sh ran at:
+  # project (.claude/settings.json) or user (~/.claude/settings.json). Check
+  # the union, same as state.sh detect, or user-scope installs are flagged
+  # NOT wired forever (#82).
+  local user_settings="${HOME:-}/.claude/settings.json"
+  python3 - "$config_json" "$_LIFECYCLE_ORDER" "$hooks_dir" "$events_json" "$SETTINGS_FILE" "$user_settings" <<'PYEOF'
+import json, os, sys
 
-config_json_str, lifecycle_str = sys.argv[1], sys.argv[2]
+config_json_str, lifecycle_str, hooks_dir, events_json_str = sys.argv[1:5]
+settings_files = sys.argv[5:]
 lifecycle_order = lifecycle_str.split()
 
 try:
@@ -312,11 +313,27 @@ try:
 except Exception:
     data = {}
 
-# hook-name → event (must match _hook_event() in the shell script)
-HOOK_EVENTS = {
-    "context-monitor":   "UserPromptSubmit",
-    "skill-leaderboard": "PostToolUse",
-}
+# hook-name → event, from hook-config.sh's shared mapping (#74).
+# Fail-open: an empty mapping buckets everything under "Other".
+try:
+    HOOK_EVENTS = json.loads(events_json_str)
+    if not isinstance(HOOK_EVENTS, dict):
+        HOOK_EVENTS = {}
+except Exception:
+    HOOK_EVENTS = {}
+
+# settings.json ids — an enabled hook without one cannot fire (#82).
+# Union across scopes: an entry in either file wires the hook.
+settings_ids = set()
+for sf in settings_files:
+    try:
+        sdata = json.load(open(sf))
+    except Exception:
+        continue
+    for event_groups in sdata.get("hooks", {}).values():
+        for group in event_groups:
+            for h in group.get("hooks", []):
+                settings_ids.add(h.get("id", ""))
 
 # collect only enabled hooks, keyed by event
 by_event: dict[str, list[tuple[str, dict]]] = {}
@@ -330,7 +347,19 @@ if not by_event:
     print("(no active hooks)")
     sys.exit(0)
 
+def wiring_problems(name: str) -> list:
+    problems = []
+    if not os.path.isfile(os.path.join(hooks_dir, name + ".sh")):
+        problems.append("script missing")
+    if "memo-flow:" + name not in settings_ids:
+        problems.append("no settings.json entry")
+    return problems
+
 def format_hook(name: str, cfg: dict) -> str:
+    problems = wiring_problems(name)
+    if problems:
+        return (f"  {name}: ENABLED (config) but NOT wired — "
+                f"{', '.join(problems)}; re-run install.sh to repair")
     if name == "context-monitor":
         mode = cfg.get("mode", "notify")
         threshold = cfg.get("threshold", 130000)

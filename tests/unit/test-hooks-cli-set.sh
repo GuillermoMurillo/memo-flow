@@ -96,6 +96,17 @@ rc=$?
 set -e
 [[ "$rc" != "0" ]] && ok "missing '=' exits non-zero" || fail "missing = should error"
 
+# ── missing hook key: --set seeds bundle defaults, then applies field ───────
+# CFG was seeded without a handoff-clipboard entry. Setting a field on it must
+# first seed the bundle's per-hook defaults (enabled:false) so they are not
+# silently dropped (issue #66).
+MEMO_FLOW_CONFIG="$CFG" "$CLI" --set handoff-clipboard.something=bar >/dev/null 2>&1
+enabled_seeded=$(read_field handoff-clipboard.enabled)
+field_set=$(read_field handoff-clipboard.something)
+[[ "$enabled_seeded" == "False" && "$field_set" == "'bar'" ]] \
+  && ok "missing hook key seeds defaults before applying field" \
+  || fail "missing hook key dropped defaults" "enabled=$enabled_seeded something=$field_set"
+
 # ── error: empty value is still allowed (clears to empty string) ────────────
 # (Explicit non-test: if someone wants the empty-string semantics they can use
 # `--set foo.bar=`; we don't need to validate that here, but we should not
@@ -105,6 +116,28 @@ MEMO_FLOW_CONFIG="$CFG" "$CLI" --set context-monitor.mode= >/dev/null 2>&1
 rc=$?
 set -e
 [[ "$rc" == "0" ]] && ok "empty value accepted (sets to empty string)" || fail "empty value rejected"
+
+# ── existing hook key: defaults are NOT re-applied ───────────────────────────
+# context-monitor exists with threshold=1000 (default is 130000). Setting an
+# unrelated field must not reset customized values back to bundle defaults.
+MEMO_FLOW_CONFIG="$CFG" "$CLI" --set context-monitor.mode=notify >/dev/null 2>&1
+threshold_kept=$(read_field context-monitor.threshold)
+[[ "$threshold_kept" == "1000" ]] \
+  && ok "existing hook key: defaults not re-applied over customized values" \
+  || fail "defaults clobbered existing values" "threshold=$threshold_kept"
+
+# ── error: unknown hook exits non-zero, lists valid hooks, writes nothing ───
+before=$(cat "$CFG")
+set +e
+MEMO_FLOW_CONFIG="$CFG" "$CLI" --set no-such-hook.enabled=true >/dev/null 2>"$WORK/err2"
+rc=$?
+set -e
+after=$(cat "$CFG")
+if [[ "$rc" != "0" && "$before" == "$after" ]] && grep -q "handoff-clipboard" "$WORK/err2"; then
+  ok "unknown hook exits non-zero listing valid hooks, no partial write"
+else
+  fail "unknown hook not rejected cleanly" "rc=$rc stderr=$(cat "$WORK/err2")"
+fi
 
 echo
 echo "──────────────────────────────────────────"

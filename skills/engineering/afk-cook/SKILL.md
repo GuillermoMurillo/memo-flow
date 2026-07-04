@@ -13,15 +13,24 @@ A single long Claude session accumulates context across slices, drifts, and even
 
 ## Installation
 
-The runner is installed into the consumer project by `/memo-flow`. After running `/memo-flow` in a project, the wrapper appears at:
+The install is a thin-wrapper model with two layers:
 
+- **The skill folder.** `npx skills@latest add GuillermoMurillo/memo-flow -a claude-code` puts the real runner script and its prompt template side by side at `.claude/skills/afk-cook/afk-cook` and `.claude/skills/afk-cook/slice-prompt.md`.
+- **The wrapper.** `/memo-flow` writes exactly one file outside the skill folder — a thin wrapper at `<project-root>/.claude/memo-flow/bin/afk-cook`:
+
+```bash
+#!/usr/bin/env bash
+exec "$(dirname "$0")/../../skills/afk-cook/afk-cook" "$@"
 ```
-<project-root>/.claude/memo-flow/bin/afk-cook
-```
+
+The indirection is why `slice-prompt.md` is never copied next to the wrapper: `exec` replaces the wrapper process with the real script invoked by its resolved path, so `$0` inside the runner points at the real script under `.claude/skills/afk-cook/` — not at the wrapper — and the default prompt path (`$(dirname "$0")/slice-prompt.md`) lands on the template sitting next to the real script. A correctly installed project has exactly one afk-cook file outside the skill folder. Do not "repair" that by copying files around.
 
 Run `./.claude/memo-flow/bin/afk-cook` from the project root.
 
-If that file is missing, re-run `/memo-flow` and confirm AFK installation when prompted.
+If something is missing:
+
+- Wrapper absent at `.claude/memo-flow/bin/afk-cook` → re-run `/memo-flow` and confirm AFK installation when prompted; it rewrites the wrapper.
+- Real script or `slice-prompt.md` absent from `.claude/skills/afk-cook/` → the skill install itself is incomplete; re-run `npx skills@latest add GuillermoMurillo/memo-flow -a claude-code`, then `/memo-flow`.
 
 ## Usage
 

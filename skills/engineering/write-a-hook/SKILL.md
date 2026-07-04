@@ -13,6 +13,8 @@ Scaffold a new hook conforming to memo-flow bundle conventions. The skill interr
 
 Ask the author each question in order. Do not skip any. Do not write files until all answers are collected.
 
+When presenting options via `AskUserQuestion`, keep the two fields straight: `label` is the short chip text the user clicks — 1–5 words. `description` is the 1–2 sentence explanation of what picking the option means. Long prose in `label` renders as an unreadable chip; it belongs in `description`.
+
 **Hook name** (kebab-case, no `.sh` suffix, e.g. `context-monitor`):
 - Must be unique among hooks in `skills/engineering/memo-hooks/hooks/`
 

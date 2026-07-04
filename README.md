@@ -69,10 +69,13 @@ After `/memo-flow` plus `/memo-hooks`, your project looks like this:
 │   ├── issue-tracker.md              # where issues live (GitHub vs local markdown) and how agents read/write them
 │   ├── triage-labels.md              # canonical label vocabulary (needs-triage, needs-info, ready-for-agent, ready-for-human, wontfix)
 │   └── domain.md                     # points agents at your domain docs (CONTEXT.md, ADRs, etc.) so they ground in your terminology
-└── CLAUDE.md                         # gets an `## Agent skills` fenced block
+├── CLAUDE.md                         # gets an `## Agent skills` fenced block
+└── .worktreeinclude                  # paths Claude Code copies into worktrees it creates
 ```
 
 Plus one global entry at `~/.claude/memo-flow/registry.json` that tracks which projects have memo-flow installed.
+
+About `.worktreeinclude`: `.claude/` is usually gitignored, so a git worktree checkout has no skills or hooks in it. This file (gitignore syntax) tells Claude Code which gitignored paths to copy into worktrees it creates. Two caveats: the copy is a snapshot taken at worktree creation, so a long-lived worktree goes stale after skill updates until you re-create it; and worktrees made with plain `git worktree add` outside Claude Code get nothing.
 
 **What you can change freely:**
 
