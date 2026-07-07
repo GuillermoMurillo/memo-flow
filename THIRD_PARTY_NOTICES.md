@@ -8,6 +8,7 @@ Modifications:
 - `setup-matt-pocock-skills` skill: originally vendored as `setup-memo-flow` (cosmetic rename, behavior unchanged); subsequently consolidated into the original `memo-flow` skill (PR #35, 2026-05-23) which now houses fresh install, health check, and repair as state-routed branches. The original `setup-matt-pocock-skills` body is no longer shipped as a standalone skill; its install logic lives in `skills/engineering/memo-flow/SKILL.md` Branch A.
 - Per-file attribution header added to each vendored `SKILL.md`.
 - Subsequent customizations (e.g. AFK scripts, post-slice recommendation step) are original to this repository and not derived from upstream.
+- `caveman` retired to `skills/deprecated/` (2026-07-06, v1.0 alignment). Its compression rules were absorbed into the original `pager` skill as a no-device "concise mode"; that section of `pager/SKILL.md` remains derived from upstream's caveman and is covered by the license below. `zoom-out` (also vendored from upstream) retired to `skills/deprecated/` in the same pass. Both removed from `plugin.json` and the promoted-bucket READMEs.
 - `diagnose` SKILL.md: added two mandatory checkpoints — end of Phase 1 (state the feedback loop before reproducing) and end of Phase 4 (state root cause + fix type before writing code). Diverges from upstream, where Phase 4→5 flows without a stop. Tracks the intent of upstream proposal mattpocock/skills#124 (open, unanswered).
 
 ---

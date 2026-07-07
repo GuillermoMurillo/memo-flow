@@ -20,4 +20,3 @@ Promoted engineering skills. Listed in root `README.md` and `.claude-plugin/plug
 - [uninstall-memo-flow](uninstall-memo-flow/SKILL.md): reverse every base-tier memo-flow mutation and remove the project from the user registry.
 - [uninstall-memo-hooks](uninstall-memo-hooks/SKILL.md): reverse every hooks-tier mutation and drop the hooks tier from the registry.
 - [write-a-hook](write-a-hook/SKILL.md): scaffold a new memo-flow bundle hook with consistent script + config + settings entry + README row in a single pass.
-- [zoom-out](zoom-out/SKILL.md): step back and re-frame when stuck in the weeds.
