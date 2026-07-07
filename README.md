@@ -27,7 +27,7 @@ Then in a Claude Code session:
 
 ## What's in it
 
-**Vendored from Matt's upstream:** `tdd`, `triage`, `to-prd`, `to-issues`, `diagnosing-bugs`, `grill-with-docs`, `prototype`, `code-review`, `codebase-design`, `domain-modeling`, `grilling`, `improve-codebase-architecture`, `implement`, `resolving-merge-conflicts`, `teach`, `grill-me`, `handoff`, `writing-great-skills`.
+**Vendored from Matt's upstream:** `tdd`, `triage`, `to-prd`, `to-issues`, `diagnosing-bugs`, `grill-with-docs`, `prototype`, `code-review`, `codebase-design`, `domain-modeling`, `grilling`, `improve-codebase-architecture`, `implement`, `resolving-merge-conflicts`, `teach`, `grill-me`, `handoff`, `writing-great-skills`, `ask-memo`.
 
 > Upgrading from an older install: `review`, `diagnose`, and `write-a-skill` are now `code-review`, `diagnosing-bugs`, and `writing-great-skills` (upstream v1.0 names). Re-run the install command and delete the old `.claude/skills/{review,diagnose,write-a-skill}/` folders.
 
@@ -91,12 +91,19 @@ About `.worktreeinclude`: `.claude/` is usually gitignored, so a git worktree ch
 
 ## Day-to-day
 
+You don't need to memorize the catalog. `/ask-memo` knows every flow and recommends the entry point for whatever you're trying to do. For the common situations:
+
 ```
-plan      /grill-me   /grilling   /prototype   /to-prd   /grill-with-docs   /to-issues
-build     /afk-cook   /implement   /tdd
-stuck     /diagnosing-bugs   /improve-codebase-architecture
-ship      /code-review     /review-tests   /critique   /ship
-maintain  /triage     /memo-flow   /memo-hooks   /handoff
+have a vague idea             /grill-with-docs
+need to see it to decide      /prototype
+idea is sharp, split it up    /to-prd, then /to-issues
+building it yourself          /implement        (drives /tdd per slice)
+leaving for the night         /afk-cook         (drains ready-for-agent issues)
+bug report just came in       /triage
+something's broken            /diagnosing-bugs
+branch feels done             /ship             (gates on /code-review, /review-tests, /critique)
+spare moment                  /improve-codebase-architecture
+anything else                 /ask-memo
 ```
 
 ## AFK runner
