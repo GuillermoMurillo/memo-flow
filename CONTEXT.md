@@ -15,7 +15,7 @@ Controlled vocabulary for this repo. When a term here conflicts with a term used
 
 A skill **graduates** by moving from an unpromoted bucket into a promoted one and being added to `plugin.json` and the bucket's `README.md`.
 
-- **Add-on skill**: a memo-flow original skill that composes with a vendored skill (e.g. `/review`, `/tdd`) without modifying its body. Lives in its own folder, is invoked alongside the vendored skill, and survives upstream re-vendor cleanly. The current example is the test-sufficiency reviewer that runs after `/review` to add a Tests axis without forking Matt's `/review` body. See issue #50 for the broader decoupling concern.
+- **Add-on skill**: a memo-flow original skill that composes with a vendored skill (e.g. `/code-review`, `/tdd`) without modifying its body. Lives in its own folder, is invoked alongside the vendored skill, and survives upstream re-vendor cleanly. The current example is the test-sufficiency reviewer that runs after `/code-review` to add a Tests axis without forking Matt's `/code-review` body. See issue #50 for the broader decoupling concern.
 
 ## Workflow vocabulary
 
@@ -25,7 +25,7 @@ A skill **graduates** by moving from an unpromoted bucket into a promoted one an
 - **Triage role**: a canonical issue state (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`) mapped to the tracker's actual label strings by `docs/agents/triage-labels.md` in the consumer project.
 - **Domain doc**: the consumer project's authoritative description of its problem domain. Lives at `CONTEXT.md` (single-context project) or per-context files referenced by `CONTEXT-MAP.md` (multi-context project).
 - **Test-sufficiency review**: a review pass that asks whether the existing tests adequately cover the diff's behavior — not whether tests exist (test-gate's job) and not whether they pass (the test runner's job). Reports two severities: *Missing* (high-confidence gaps in branches, error paths, public contracts, integration surfaces) and *Consider* (qualitative judgment calls about plausible failure modes the diff's intent suggests). AI-judgment skill, not a deterministic checker.
-- **Critique**: an *advisory pass*, not a *gate*. A **gate** blocks progress, runs deterministically, and aims for full coverage of its axis (e.g. a vuln scan or a passing test suite: fail it and you cannot ship). An **advisory pass** runs in-session, is Claude-scoped (AI judgment, not a deterministic checker), emits graded recommendations for a human or the loop to triage, and blocks nothing. `/critique` is the advisory pass: a hostile, fresh-context review covering the axes `/review` and `/review-tests` leave uncovered. The grades (*must-fix* / *should-fix* / *nit*) are recommendations, never enforcement.
+- **Critique**: an *advisory pass*, not a *gate*. A **gate** blocks progress, runs deterministically, and aims for full coverage of its axis (e.g. a vuln scan or a passing test suite: fail it and you cannot ship). An **advisory pass** runs in-session, is Claude-scoped (AI judgment, not a deterministic checker), emits graded recommendations for a human or the loop to triage, and blocks nothing. `/critique` is the advisory pass: a hostile, fresh-context review covering the axes `/code-review` and `/review-tests` leave uncovered. The grades (*must-fix* / *should-fix* / *nit*) are recommendations, never enforcement.
 
 ## Installer vocabulary
 
