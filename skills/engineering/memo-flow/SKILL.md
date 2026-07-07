@@ -399,7 +399,31 @@ Report the output to the user. Each managed mutation is listed with one of:
 | `missing` | file should be on disk but isn't — likely deleted |
 | `customized` | opted out of updates — doctor ignores this file |
 
-### B4. Fix (if requested)
+### B4. Orphan scan (renames and retirements)
+
+The skills CLI never deletes folders on update — renamed or retired skills leave orphans behind. Scan both install locations against the map:
+
+```bash
+for dir in .claude/skills "$HOME/.claude/skills"; do
+  for old in review memo-review diagnose write-a-skill caveman zoom-out; do
+    [ -d "$dir/$old" ] && echo "orphan: $dir/$old"
+  done
+done
+```
+
+Rename/retire map (extend this list whenever a rename or retirement lands in the repo):
+
+| orphan | fate |
+|---|---|
+| `review`, `memo-review` | renamed → `code-review` |
+| `diagnose` | renamed → `diagnosing-bugs` |
+| `write-a-skill` | renamed → `writing-great-skills` |
+| `caveman` | retired → absorbed into `pager` concise mode |
+| `zoom-out` | retired, no replacement |
+
+If orphans are found, report each with its fate and offer deletion. Confirm project-level (`.claude/skills`) and user-level (`~/.claude/skills`) separately — the user-level dir affects every project and may hold the user's own unrelated skill by the same name, so show the folder's description line before deleting there. On confirmation, `rm -rf` each confirmed folder. Never delete a folder whose name is not in the map.
+
+### B5. Fix (if requested)
 
 If the user wants to repair all fixable items non-interactively:
 
@@ -417,7 +441,7 @@ SKILL_DIR=".claude/skills/memo-flow"
 "$SKILL_DIR/modules/manifest.sh" toggle-customized .claude/memo-flow/manifest.json <mutation-id> true
 ```
 
-### B5. Config-level decisions
+### B6. Config-level decisions
 
 Doctor routes these back to `/memo-flow` (fresh-install branch) rather than fixing them itself:
 
@@ -427,7 +451,7 @@ Doctor routes these back to `/memo-flow` (fresh-install branch) rather than fixi
 
 Tell the user to re-run `/memo-flow` for those (the state detector will route to Branch A if things are sufficiently broken, or Branch C if skills are missing).
 
-### B6. `--survey` mode
+### B7. `--survey` mode
 
 Cross-project survey (`--survey`) is a separate slice (memo-flow#10) and is not implemented yet. If the user invokes `/memo-flow --survey`, tell them it's planned but not available.
 
