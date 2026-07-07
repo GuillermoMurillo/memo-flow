@@ -27,7 +27,7 @@ Then in a Claude Code session:
 
 ## What's in it
 
-**Vendored from Matt's upstream:** `tdd`, `triage`, `to-prd`, `to-issues`, `diagnose`, `grill-with-docs`, `prototype`, `review`, `improve-codebase-architecture`, `zoom-out`, `grill-me`, `handoff`, `write-a-skill`, `caveman`.
+**Vendored from Matt's upstream:** `tdd`, `triage`, `to-prd`, `to-issues`, `diagnose`, `grill-with-docs`, `prototype`, `review`, `improve-codebase-architecture`, `grill-me`, `handoff`, `write-a-skill`.
 
 **Originals in this repo:**
 
@@ -36,7 +36,7 @@ Then in a Claude Code session:
 - `/review-tests`: test-sufficiency axis that runs alongside `/review`. Asks whether existing tests cover the change.
 - `/critique`: adversarial, fresh-context pass covering what `/review` and `/review-tests` leave uncovered (scope creep, dead code, error-handling slop, naming, AI-slop sweep). Advisory, never a gate.
 - `/write-a-hook`: scaffold a new hook so script, config, settings, and README stay consistent.
-- `/pager`: portable display mode for small screens (glasses, phone, watch).
+- `/pager`: portable display mode for small screens (glasses, phone, watch), plus a no-device concise mode.
 - `/uninstall-memo-flow`, `/uninstall-memo-hooks`: reverse everything cleanly.
 
 ## Hooks
@@ -92,7 +92,7 @@ About `.worktreeinclude`: `.claude/` is usually gitignored, so a git worktree ch
 ```
 plan      /grill-me   /prototype   /to-prd   /grill-with-docs   /to-issues
 build     /afk-cook   /tdd
-stuck     /diagnose   /zoom-out    /improve-codebase-architecture
+stuck     /diagnose   /improve-codebase-architecture
 ship      /review     /review-tests   /critique   /ship
 maintain  /triage     /memo-flow   /memo-hooks   /handoff
 ```

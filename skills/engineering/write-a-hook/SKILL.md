@@ -1,6 +1,7 @@
 ---
 name: write-a-hook
 description: Internal authoring tool for new memo-flow bundle hooks. Interrogates the author, then scaffolds the hook script, config.json block, settings.json entry, and README row — ensuring all four outputs are consistent before any file is written.
+disable-model-invocation: true
 ---
 
 # Write a hook

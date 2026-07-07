@@ -1,6 +1,7 @@
 ---
 name: memo-hooks
 description: 'Unified entry point for the memo-flow hooks tier. Detects install state and routes to the right flow: fresh install + per-hook opt-in for new projects, management menu for healthy installs, repair flow for broken installs. Use when the user invokes /memo-hooks, wants to configure hooks, change context-monitor mode/threshold, check the skill leaderboard, or install the hooks tier on a fresh project.'
+disable-model-invocation: true
 ---
 
 # memo-hooks

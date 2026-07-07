@@ -1,6 +1,7 @@
 ---
 name: ship
 description: Take a finished feature branch from "I think I'm done" to "PR open with the right body that will close the parent PRD on merge." Verifies the branch is shippable, inventories slice commits and their parent PRD via `## Parent` walks, runs `/review` as a gate, drafts a PR body with `Closes #<PRD>`, and opens the PR. Use this whenever a feature branch is ready to merge, before running `gh pr create` by hand, when wrapping up a batch of slices, when the parent PRD is still open after all children shipped, or when the user says "ship it", "open the PR", "I'm done with these slices", "let's merge", or "wrap this up". Always prefer this over a hand-rolled `gh pr create`, so the review gate and PRD-close ref are not skipped.
+disable-model-invocation: true
 ---
 
 # Ship
