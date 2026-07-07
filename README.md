@@ -27,7 +27,7 @@ Then in a Claude Code session:
 
 ## What's in it
 
-**Vendored from Matt's upstream:** `tdd`, `triage`, `to-prd`, `to-issues`, `diagnosing-bugs`, `grill-with-docs`, `prototype`, `code-review`, `codebase-design`, `domain-modeling`, `grilling`, `improve-codebase-architecture`, `implement`, `resolving-merge-conflicts`, `teach`, `grill-me`, `handoff`, `writing-great-skills`.
+**Vendored from Matt's upstream:** `tdd`, `triage`, `to-prd`, `to-issues`, `diagnosing-bugs`, `grill-with-docs`, `prototype`, `code-review`, `codebase-design`, `domain-modeling`, `grilling`, `improve-codebase-architecture`, `implement`, `resolving-merge-conflicts`, `teach`, `grill-me`, `handoff`, `writing-great-skills`, `ask-memo`.
 
 > Upgrading from an older install: `review`, `diagnose`, and `write-a-skill` are now `code-review`, `diagnosing-bugs`, and `writing-great-skills` (upstream v1.0 names). Re-run the install command and delete the old `.claude/skills/{review,diagnose,write-a-skill}/` folders.
 
@@ -97,6 +97,7 @@ build     /afk-cook   /implement   /tdd
 stuck     /diagnosing-bugs   /improve-codebase-architecture
 ship      /code-review     /review-tests   /critique   /ship
 maintain  /triage     /memo-flow   /memo-hooks   /handoff
+lost      /ask-memo
 ```
 
 ## AFK runner

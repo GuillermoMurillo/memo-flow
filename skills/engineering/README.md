@@ -3,6 +3,7 @@
 Promoted engineering skills. Listed in root `README.md` and `.claude-plugin/plugin.json`.
 
 - [afk-cook](afk-cook/SKILL.md): bash-loop runner for unattended fresh-context execution of `ready-for-agent` issues. Installed into your project by `/memo-flow`.
+- [ask-memo](ask-memo/SKILL.md): router over every skill in the repo — describes the main flow, on-ramps, and standalones, then recommends an entry point.
 - [critique](critique/SKILL.md): adversarial, fresh-context review of a diff covering the axes `/code-review` and `/review-tests` leave uncovered (scope creep, dead code, error-handling slop, naming, AI-slop sweep). Advisory, never a gate. Emits graded findings (must-fix / should-fix / nit).
 - [code-review](code-review/SKILL.md): two-axis (Standards + Spec) review of a branch via parallel sub-agents, with a fixed Fowler smell baseline. Invoked directly or as the review gate inside `/ship`.
 - [codebase-design](codebase-design/SKILL.md): shared vocabulary for designing deep modules — seams, deepening, design-it-twice.
