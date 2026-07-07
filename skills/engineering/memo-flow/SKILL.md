@@ -1,6 +1,7 @@
 ---
 name: memo-flow
 description: 'Unified entry point for the memo-flow base tier. Detects install state and routes to the right flow: fresh install for new projects, status + health checks for healthy installs, diagnose and repair for broken installs. Use when the user invokes /memo-flow, wants to set up engineering skills on a new project, check project health, repair a broken install, or run a cross-project health survey.'
+disable-model-invocation: true
 ---
 
 # memo-flow

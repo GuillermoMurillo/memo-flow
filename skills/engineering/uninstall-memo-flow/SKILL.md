@@ -1,6 +1,7 @@
 ---
 name: uninstall-memo-flow
 description: 'Reverses every base-tier memo-flow mutation in the current project and removes its entry from the user registry. Refuses to run if the hooks tier is still installed — instruct the user to run /uninstall-memo-hooks first. Fenced regions with no inner content are removed silently; regions with user-edited content prompt before destroying (non-interactive default: preserve content, strip fences).'
+disable-model-invocation: true
 ---
 
 # Uninstall memo-flow

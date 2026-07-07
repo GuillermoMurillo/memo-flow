@@ -1,6 +1,7 @@
 ---
 name: afk-cook
 description: Bash-loop runner for unattended, fresh-context execution of ready-for-agent issues. Each iteration starts empty, reads the spec from the issue body, applies TDD, commits, advances. Use when the user wants to walk away and let a batch of ready-for-agent slices ship overnight, or asks how to install/use the AFK runner.
+disable-model-invocation: true
 ---
 
 # AFK runner
