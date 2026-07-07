@@ -11,7 +11,8 @@ This repo is the source of Claude Code skills and AFK tooling. Some skills under
 ## Distribution
 
 - Repo is the source of truth.
-- Consumers install skills via `npx skills@latest add GuillermoMurillo/memo-flow -a claude-code`. The `skills` CLI reads `.claude-plugin/plugin.json` and copies each listed skill folder into the consumer project's `.claude/skills/<skill>/`. Without `-a claude-code`, files default to the universal `.agents/skills/` location which Claude Code does not read natively.
+- Consumers install skills via `npx skills@latest add GuillermoMurillo/memo-flow -a claude-code`. The `skills` CLI copies skill folders into the consumer project's `.claude/skills/<skill>/`. Without `-a claude-code`, files default to the universal `.agents/skills/` location which Claude Code does not read natively.
+- The CLI does NOT limit itself to `.claude-plugin/plugin.json` — it scans the whole `skills/` catalog (`skills/<category>/<name>/SKILL.md`) and installs everything it finds. Any skill that must not reach consumers (deprecated, in-progress) MUST carry `metadata.internal: true` in its frontmatter, or it leaks into installs.
 - After install, consumers run `/memo-flow` once to scaffold `docs/agents/{issue-tracker,triage-labels,domain}.md` and an `## Agent skills` config block in `AGENTS.md` / `CLAUDE.md`. The same `/memo-flow` skill detects install state on every subsequent invocation and routes to status/health checks or repair as needed.
 - `.claude-plugin/plugin.json` is the single source of truth for which skills ship. Keep it aligned with the promoted-bucket READMEs.
 

@@ -2,6 +2,8 @@
 
 Skills kept for history but no longer recommended. **Not** listed in root `README.md` or `.claude-plugin/plugin.json`.
 
+Every skill in this bucket MUST carry `metadata.internal: true` in its SKILL.md frontmatter. The `skills` CLI scans the whole `skills/` catalog, not just `plugin.json` — without the flag, retired skills leak into consumer installs.
+
 Move a skill here (rather than deleting) when:
 - It's been superseded by a different skill and we want a paper trail.
 - Upstream removed it and we don't want to carry it forward, but want to retain the snapshot for reference.
