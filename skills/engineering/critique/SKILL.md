@@ -1,16 +1,16 @@
 ---
 name: critique
-description: Adversarial code review of a diff for a human to triage. Advisory, never blocks. Owns the axes that /review and /review-tests do not cover - scope creep, dead and half-finished code, error-handling slop, naming and readability lies, and an AI-slop-pattern sweep. Emits graded findings (must-fix / should-fix / nit) plus a verdict. Use when the user says critique this, tear this apart, be harsh, what is wrong with this code, review this like you hate it, wants a brutal or adversarial pass before a PR, suspects too many looks-fine-to-me verdicts on their own work, or invokes /critique. Also offered as an optional pass inside /ship.
+description: Adversarial code review of a diff for a human to triage. Advisory, never blocks. Owns the axes that /code-review and /review-tests do not cover - scope creep, dead and half-finished code, error-handling slop, naming and readability lies, and an AI-slop-pattern sweep. Emits graded findings (must-fix / should-fix / nit) plus a verdict. Use when the user says critique this, tear this apart, be harsh, what is wrong with this code, review this like you hate it, wants a brutal or adversarial pass before a PR, suspects too many looks-fine-to-me verdicts on their own work, or invokes /critique. Also offered as an optional pass inside /ship.
 allowed-tools: Bash(git diff:*), Bash(git log:*), Bash(git status:*), Read, Grep, Agent
 ---
 
 # Critique
 
-The suspicious reviewer: fresh sub-agent, false attribution, hostile persona. Owns the axes /review and /review-tests do not. Slop patterns and weakness lenses live in `slop-patterns.md`. Advisory, never a gate.
+The suspicious reviewer: fresh sub-agent, false attribution, hostile persona. Owns the axes /code-review and /review-tests do not. Slop patterns and weakness lenses live in `slop-patterns.md`. Advisory, never a gate.
 
 ## Execution
 
-1. Pin the fixed point like /review (SHA, branch, tag, `main`; if unspecified, ask). Capture `git diff <fp>...HEAD` (three-dot, against merge-base) and `git log <fp>..HEAD --oneline`. Fold untracked files from `git status --porcelain` in as wholly added; a diff alone cannot see them.
+1. Pin the fixed point like /code-review (SHA, branch, tag, `main`; if unspecified, ask). Capture `git diff <fp>...HEAD` (three-dot, against merge-base) and `git log <fp>..HEAD --oneline`. Fold untracked files from `git status --porcelain` in as wholly added; a diff alone cannot see them.
 2. Pick a generic attribution descriptor at random: rotate phrasings like "another coding model", "a different AI agent", "an autonomous coding agent that isn't you". Never a vendor or model name. Do not reveal the pick before the report lands; it appears only in the closing line.
 3. Spawn one fresh `general-purpose` sub-agent with the prompt below, substituting `{{ATTRIBUTION}}`, `{{BASE}}`, `{{DATE}}`, `{{UNTRACKED}}` (the untracked list from step 1, `none` if empty), and `{{SLOP_PATH}}` (this skill's own `slop-patterns.md`, resolved from the skill's base directory). Read-only: it never edits code or writes files. Return its report verbatim; do not rerank findings.
 
@@ -45,7 +45,7 @@ You own five axes, only these five:
    and weakness lens against the diff; flag each hit by file:line. Skip
    hits already raised under axes 1-4: axis 5 catches the residue, not repeats.
 
-Out of scope: Spec and Standards belong to /review, test sufficiency to
+Out of scope: Spec and Standards belong to /code-review, test sufficiency to
 /review-tests, security severity to the consumer's own tooling. Skip the
 catalog's test-quality entries (fake-coverage, tautological tests): test
 adequacy belongs to /review-tests.

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Tests: skills/engineering/write-a-hook skills/productivity/write-a-skill
+# Tests: skills/engineering/write-a-hook skills/productivity/writing-great-skills
 #
 # Verifies the AskUserQuestion label-vs-description convention is documented
 # (issue #72): `label` is the short chip text (1-5 words), `description` is
@@ -26,7 +26,7 @@ else
     "expected label: 1-5 word chip, description: 1-2 sentence explanation in $HOOK_SKILL"
 fi
 
-SKILL_SKILL="$REPO_ROOT/skills/productivity/write-a-skill/SKILL.md"
+SKILL_SKILL="$REPO_ROOT/skills/productivity/writing-great-skills/SKILL.md"
 
 if grep -q "AskUserQuestion" "$SKILL_SKILL" \
    && grep -Eqi 'label.*(1–5|1-5) words' "$SKILL_SKILL" \

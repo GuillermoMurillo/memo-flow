@@ -4,7 +4,7 @@ memo-flow does not build evaluation or measurement tooling: LLM-as-judge panels,
 
 ## Why this is out of scope
 
-memo-flow is a workflow toolkit: skills, hooks, and the AFK runner that shape how work happens. An eval layer is a different product with its own substrate (fixtures, scoring, run history, CI token cost management) and its own maintenance burden. The judgment surfaces that already ship (`/review`, `/review-tests`, `/critique`) cover the "is this good" question at the workflow level; a measurement lane behind them would be a second product this repo has decided not to own.
+memo-flow is a workflow toolkit: skills, hooks, and the AFK runner that shape how work happens. An eval layer is a different product with its own substrate (fixtures, scoring, run history, CI token cost management) and its own maintenance burden. The judgment surfaces that already ship (`/code-review`, `/review-tests`, `/critique`) cover the "is this good" question at the workflow level; a measurement lane behind them would be a second product this repo has decided not to own.
 
 Projects that want measured evals should wire an external framework (Promptfoo, Inspect, DeepEval, or whatever is current) into their own CI rather than expect it from memo-flow.
 
