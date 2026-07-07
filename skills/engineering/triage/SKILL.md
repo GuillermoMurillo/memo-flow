@@ -1,8 +1,9 @@
 ---
 name: triage
-description: Triage issues through a state machine driven by triage roles. Use when user wants to create an issue, triage issues, review incoming bugs or feature requests, prepare issues for an AFK agent, or manage issue workflow.
+description: Move issues and external PRs through a state machine of triage roles — categorise, verify, grill if needed, and write agent-ready briefs.
 disable-model-invocation: true
 ---
+<!-- Derived from mattpocock/skills (MIT). Modifications documented in THIRD_PARTY_NOTICES.md. -->
 
 # Triage
 

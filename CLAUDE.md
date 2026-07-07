@@ -6,7 +6,7 @@ This repo is the source of Claude Code skills and AFK tooling. Some skills under
 
 - Document non-cosmetic changes to vendored skills in `THIRD_PARTY_NOTICES.md` under "Modifications" so it stays accurate.
 - Skills added here (not from upstream) get no attribution header. Only the upstream-derived files carry one.
-- Skill names stay short and bare (`tdd`, `triage`, `review`). No namespace prefix in slash commands.
+- Skill names match upstream mattpocock/skills (`code-review`, `diagnosing-bugs`, `writing-great-skills`). No namespace prefix in slash commands. Collision with Claude Code built-ins (e.g. `/code-review`) is accepted; the project skill wins.
 
 ## Distribution
 

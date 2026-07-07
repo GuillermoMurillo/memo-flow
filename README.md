@@ -27,14 +27,16 @@ Then in a Claude Code session:
 
 ## What's in it
 
-**Vendored from Matt's upstream:** `tdd`, `triage`, `to-prd`, `to-issues`, `diagnose`, `grill-with-docs`, `prototype`, `review`, `improve-codebase-architecture`, `grill-me`, `handoff`, `write-a-skill`.
+**Vendored from Matt's upstream:** `tdd`, `triage`, `to-prd`, `to-issues`, `diagnosing-bugs`, `grill-with-docs`, `prototype`, `code-review`, `codebase-design`, `domain-modeling`, `grilling`, `improve-codebase-architecture`, `grill-me`, `handoff`, `writing-great-skills`.
+
+> Upgrading from an older install: `review`, `diagnose`, and `write-a-skill` are now `code-review`, `diagnosing-bugs`, and `writing-great-skills` (upstream v1.0 names). Re-run the install command and delete the old `.claude/skills/{review,diagnose,write-a-skill}/` folders.
 
 **Originals in this repo:**
 
 - `/memo-flow`, `/memo-hooks`: state-routed installers. Detect fresh / healthy / broken, route accordingly.
-- `/ship`: finished branch to open PR with `Closes #<PRD>` baked in. Runs `/review` as a gate.
-- `/review-tests`: test-sufficiency axis that runs alongside `/review`. Asks whether existing tests cover the change.
-- `/critique`: adversarial, fresh-context pass covering what `/review` and `/review-tests` leave uncovered (scope creep, dead code, error-handling slop, naming, AI-slop sweep). Advisory, never a gate.
+- `/ship`: finished branch to open PR with `Closes #<PRD>` baked in. Runs `/code-review` as a gate.
+- `/review-tests`: test-sufficiency axis that runs alongside `/code-review`. Asks whether existing tests cover the change.
+- `/critique`: adversarial, fresh-context pass covering what `/code-review` and `/review-tests` leave uncovered (scope creep, dead code, error-handling slop, naming, AI-slop sweep). Advisory, never a gate.
 - `/write-a-hook`: scaffold a new hook so script, config, settings, and README stay consistent.
 - `/pager`: portable display mode for small screens (glasses, phone, watch), plus a no-device concise mode.
 - `/uninstall-memo-flow`, `/uninstall-memo-hooks`: reverse everything cleanly.
@@ -90,10 +92,10 @@ About `.worktreeinclude`: `.claude/` is usually gitignored, so a git worktree ch
 ## Day-to-day
 
 ```
-plan      /grill-me   /prototype   /to-prd   /grill-with-docs   /to-issues
+plan      /grill-me   /grilling   /prototype   /to-prd   /grill-with-docs   /to-issues
 build     /afk-cook   /tdd
-stuck     /diagnose   /improve-codebase-architecture
-ship      /review     /review-tests   /critique   /ship
+stuck     /diagnosing-bugs   /improve-codebase-architecture
+ship      /code-review     /review-tests   /critique   /ship
 maintain  /triage     /memo-flow   /memo-hooks   /handoff
 ```
 
