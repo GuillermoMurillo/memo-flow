@@ -91,13 +91,19 @@ About `.worktreeinclude`: `.claude/` is usually gitignored, so a git worktree ch
 
 ## Day-to-day
 
+You don't need to memorize the catalog. `/ask-memo` knows every flow and recommends the entry point for whatever you're trying to do. For the common situations:
+
 ```
-plan      /grill-me   /grilling   /prototype   /to-prd   /grill-with-docs   /to-issues
-build     /afk-cook   /implement   /tdd
-stuck     /diagnosing-bugs   /improve-codebase-architecture
-ship      /code-review     /review-tests   /critique   /ship
-maintain  /triage     /memo-flow   /memo-hooks   /handoff
-lost      /ask-memo
+have a vague idea             /grill-with-docs
+need to see it to decide      /prototype
+idea is sharp, split it up    /to-prd, then /to-issues
+building it yourself          /implement        (drives /tdd per slice)
+leaving for the night         /afk-cook         (drains ready-for-agent issues)
+bug report just came in       /triage
+something's broken            /diagnosing-bugs
+branch feels done             /ship             (gates on /code-review, /review-tests, /critique)
+spare moment                  /improve-codebase-architecture
+anything else                 /ask-memo
 ```
 
 ## AFK runner
