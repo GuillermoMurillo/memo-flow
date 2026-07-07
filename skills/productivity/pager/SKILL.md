@@ -2,8 +2,11 @@
 name: pager
 description: >
   Format replies for tiny screens like smart glasses, phones, and watches.
-  Short headline first, more on ask. Use when user says "pager mode", "on my
-  phone", "on glasses", "on the watch", "small screen", or invokes /pager.
+  Short headline first, more on ask. Also a no-device concise mode that
+  strips filler while keeping full technical accuracy. Use when user says
+  "pager mode", "on my phone", "on glasses", "on the watch", "small screen",
+  "be brief", "less tokens", "concise mode", or invokes /pager.
+disable-model-invocation: true
 ---
 
 # Pager
@@ -17,28 +20,49 @@ Off only when user says "stop pager", "normal mode", or "back to desktop".
 
 ## Activation
 
-Pager mode means the user is walking away from this screen. Start the
-stream to their device. Don't ask permission, the activation phrase
-already gave it.
+If the trigger was "be brief", "less tokens", or "concise mode" and
+no device was mentioned, jump to **Concise mode (no device)** below.
+No stream, no device file, no size.
+
+Otherwise pager mode means the user is walking away from this screen.
+Start the stream to their device. Don't ask permission, the activation
+phrase already gave it.
 
 Two paths depending on whether they've set up before.
 
+### Step 0: check for the device file
+
+The Read tool cannot expand `~`. Use Bash:
+
+```bash
+test -f "$HOME/.claude/memo-flow/pager-devices.json" && echo exists || echo missing
+```
+
+- `missing` → first run.
+- `exists` → returning user. Read it with
+  `cat "$HOME/.claude/memo-flow/pager-devices.json"`.
+- `exists` but the cat or JSON parse fails → NOT a first run.
+  Report the error and stop. Never treat a failed read as a
+  missing file; writing here would clobber the user's saved sizes.
+
 ### Returning user (device file exists)
 
-1. Read `~/.claude/memo-flow/pager-devices.json`.
-2. Look up the `default` device. Use its `rows` and `words_per_row`
-   for the rest of the session.
-3. Start the stream immediately for that device (see below).
-4. First reply at the configured size.
+1. Look up the `default` device in the file contents from step 0.
+   Use its `rows` and `words_per_row` for the rest of the session.
+2. Start the stream immediately for that device (see below).
+3. First reply at the configured size.
 
-### First run (no device file)
+### First run (device file missing)
 
 User invoking pager for the first time has no saved device.
 
 1. Ask: `what device? (glasses, phone, watch, other)`
-2. Save the default size for that device immediately to
-   `~/.claude/memo-flow/pager-devices.json`. No alignment
-   loop yet. Defaults: 7x9 glasses, 9x12 phone, 4x6 watch.
+2. Save the default size for that device to
+   `~/.claude/memo-flow/pager-devices.json`. Write only after
+   step 0 reported `missing` — re-run the `test -f` right before
+   writing if any turns have passed; if the file now exists, read
+   it and merge instead of overwriting. No alignment loop yet.
+   Defaults: 7x9 glasses, 9x12 phone, 4x6 watch.
 3. Start the stream right away (see below). For glasses, kick
    off `even-terminal --provider claude` and print the pairing
    URL. For everything else, tell them to open Claude Code on
@@ -107,6 +131,37 @@ Rules:
   `skill-usage.json`.
 - The user can edit the file directly. The skill never silently
   overwrites custom edits to `rows`, `words_per_row`, or `label`.
+
+## Concise mode (no device)
+
+Compression without the display constraints. Terse replies, full
+technical substance. Only fluff goes. The device flow above does
+not run; never touch the device file from this mode.
+
+Persistence: active every response once triggered. No filler drift
+back after many turns. Still active if unsure. Off only when the
+user says "stop", "normal mode", or "verbose".
+
+Rules:
+
+- Drop articles (a/an/the), filler (just/really/basically/actually/
+  simply), pleasantries (sure/certainly/of course/happy to), hedging.
+- Fragments OK. Strip conjunctions. One word when one word is enough.
+- Short synonyms: big not extensive, fix not "implement a solution for".
+- Abbreviate common terms: DB, auth, config, req, res, fn, impl.
+- Arrows for causality: X -> Y.
+- Technical terms stay exact. Code blocks unchanged. Errors quoted exact.
+
+Pattern: `[thing] [action] [reason]. [next step].`
+
+Not: "Sure! I'd be happy to help you with that. The issue you're
+experiencing is likely caused by..."
+Yes: "Bug in auth middleware. Token expiry check use `<` not `<=`. Fix:"
+
+The auto-clarity exception at the bottom of this file applies here
+too: drop compression for security warnings, irreversible action
+confirmations, and multi-step sequences where fragment order risks
+misread. Resume after the clear part is done.
 
 ## The headline (every response)
 
